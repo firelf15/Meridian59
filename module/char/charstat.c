@@ -40,18 +40,18 @@ static int suggested_stats[][NUM_STATS] = {
 static int  stat_points = STAT_POINTS_INITIAL;   // # of stat points remaining
 static HWND hPoints;                             // Handle of "points left" graph control
 
-static Bool controls_created = False;     // True after graph controls have been created
+static bool controls_created = false;     // true after graph controls have been created
 
 static WNDPROC lpfnDefGraphProc;  /* Default graph control window procedure */
 
 static Stat *CharFindControl(HWND hwnd);
 static void CharStatsInit(HWND hDlg);
-static long CALLBACK StatGraphProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK StatGraphProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static void CharStatsGraphChanging(HWND hDlg, WPARAM wParam, LPARAM lParam);
 static void CharStatsCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 static void SetStatSliders(HWND hDlg, int *values);
 /********************************************************************/
-BOOL CALLBACK CharStatsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK CharStatsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -82,14 +82,14 @@ void CharStatsInit(HWND hDlg)
    int i;
    HWND hGraph;
 
-   controls_created = False;
+   controls_created = false;
    stat_points = STAT_POINTS_INITIAL;
    // Initialize graph controls
    for (i=0; i < NUM_CHAR_STATS; i++)
    {
       hGraph = GetDlgItem(hDlg, IDC_CHAR_GRAPH1 + i);
       
-      lpfnDefGraphProc = (WNDPROC) GetWindowLong(hGraph, GWL_WNDPROC);
+      lpfnDefGraphProc = (WNDPROC) GetWindowLongPtr(hGraph, GWLP_WNDPROC);
       
       SendMessage(hGraph, GRPH_COLORSET, GRAPHCOLOR_BAR, GetColor(COLOR_BAR1));
       SendMessage(hGraph, GRPH_COLORSET, GRAPHCOLOR_BKGND, GetColor(COLOR_BAR3));
@@ -109,7 +109,7 @@ void CharStatsInit(HWND hDlg)
    SendMessage(hPoints, GRPH_COLORSET, GRAPHCOLOR_BKGND, GetColor(COLOR_BAR3));
    SendMessage(hPoints, GRPH_RANGESET, 0, STAT_POINTS_INITIAL);
 
-   controls_created = True;
+   controls_created = true;
 }
 /********************************************************************/
 /*
@@ -172,7 +172,7 @@ Stat *CharFindControl(HWND hwnd)
 /*
  * StatGraphProc:  Subclassed window procedure for stat graph controls.
  */
-long CALLBACK StatGraphProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK StatGraphProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
    Stat *s;
    int new_pos, cur_pos;

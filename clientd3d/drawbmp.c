@@ -32,9 +32,9 @@ extern BYTE light_palettes[NUM_PALETTES][NUM_COLORS];
 
 /* local function prototypes */
 static void DrawStretchedBitmap(PDIB pdib, RECT rect, int inc, BYTE translation, BYTE secondtranslation, int flags);
-static Bool ComputeObjectBoundingBox(PDIB pdib, list_type overlays, Bool include_object, RECT *max_rect, int angle);
+static bool ComputeObjectBoundingBox(PDIB pdib, list_type overlays, bool include_object, RECT *max_rect, int angle);
 static void DrawOverlays(PDIB pdib_obj, RECT *obj_rect, list_type overlays, 
-						 int inc, Bool underlays, BYTE secondtranslation, int flags, int angle);
+						 int inc, bool underlays, BYTE secondtranslation, int flags, int angle);
 static void OffscreenBitCopy(HDC hdc, int dest_x, int dest_y, int width, int height,
 							 BYTE *bits, int source_x, int source_y, int source_width, int options);
 /************************************************************************/
@@ -68,7 +68,7 @@ void DrawBitmapClose(void)
 */
 void DrawStretchedObjectDefault(HDC hdc, object_node *obj, AREA *area, HBRUSH brush)
 {
-	DrawObject(hdc, obj, 0, True, area, brush, 0, 0, 0, True);
+	DrawObject(hdc, obj, 0, true, area, brush, 0, 0, 0, true);
 }
 /************************************************************************/
 /*
@@ -77,7 +77,7 @@ void DrawStretchedObjectDefault(HDC hdc, object_node *obj, AREA *area, HBRUSH br
 */
 void DrawStretchedOverlays(HDC hdc, object_node *obj, AREA *area, HBRUSH brush)
 {
-	DrawObject(hdc, obj, 0, False, area, brush, 0, 0, 0, True);
+	DrawObject(hdc, obj, 0, false, area, brush, 0, 0, 0, true);
 }
 /************************************************************************/
 /*
@@ -113,31 +113,31 @@ void DrawStretchedOverlayRange(HDC hdc, object_node *obj, AREA *area, HBRUSH bru
 void DrawStretchedObjectGroup(HDC hdc, object_node *obj, int group, AREA *area, HBRUSH brush)
 {
 	if (obj->flags & OF_PLAYER)
-		DrawObject(hdc, obj, group, True, area, brush, 0, 0, 7*MAX_ANGLE/8, True);
+		DrawObject(hdc, obj, group, true, area, brush, 0, 0, 7*MAX_ANGLE/8, true);
 	else
-		DrawObject(hdc, obj, group, True, area, brush, 0, 0, 0, True);
+		DrawObject(hdc, obj, group, true, area, brush, 0, 0, 0, true);
 }
 /*
 */
-void DrawObjectIcon(HDC hdc, ID icon, int group, Bool draw_obj, AREA *area, HBRUSH brush,
-					int x, int y, Bool copy)
+void DrawObjectIcon(HDC hdc, ID icon, int group, bool draw_obj, AREA *area, HBRUSH brush,
+                    int x, int y, bool copy)
 {
 	int draw_size;
 	int width, height, obj_shrink, temp, inc;
 	RECT rect, obj_rect, max_rect;
 	PDIB pdib;
-	Bool has_overlay = False;
+	bool has_overlay = false;
 	
 	if (0 == icon) // if we pass in a null pointer then abort early
 		return;
 	
 	// If object larger than offscreen buffer, we'll have to stretch it down
-	draw_size = min(max(OFFSCREEN_BITMAP_SIZE - x, OFFSCREEN_BITMAP_SIZE - y), 
-		max(area->cx, area->cy));
-	
+	draw_size = std::min(std::max(OFFSCREEN_BITMAP_SIZE - x, OFFSCREEN_BITMAP_SIZE - y),
+		std::max(area->cx, area->cy));
+
 	SelectPalette(hdc, hPal, FALSE);
 	RealizePalette(hdc);
-	
+
 	pdib = GetObjectPdib(icon, 0, group);
 	if (pdib == NULL)
 		return;
@@ -174,30 +174,30 @@ void DrawObjectIcon(HDC hdc, ID icon, int group, Bool draw_obj, AREA *area, HBRU
 	height = max_rect.bottom - max_rect.top;
 	
 	/* Stretch object to just fit in square */
-	inc = (max(width, height) << FIX_DECIMAL) / draw_size;
-	
+	inc = (std::max(width, height) << FIX_DECIMAL) / draw_size;
+
 	if (draw_obj || has_overlay)
 	{
 		// Center object in drawing square
 		temp = draw_size - (width << FIX_DECIMAL) / inc;
 		obj_rect.left  = x + temp / 2 - DIVUP((max_rect.left << FIX_DECIMAL), inc);
 		obj_rect.right = obj_rect.left + DIVUP((DibWidth(pdib) << FIX_DECIMAL), inc);
-		
+
 		temp = draw_size - (height << FIX_DECIMAL) / inc;
 		obj_rect.top    = y + temp / 2 - DIVUP((max_rect.top << FIX_DECIMAL), inc);
 		obj_rect.bottom = obj_rect.top + DIVUP((DibHeight(pdib) << FIX_DECIMAL), inc);
 	}
-	
+
 	// Draw underlays
 	//if (obj->overlays != NULL)
-	//DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, True, obj->secondtranslation, obj->flags);
-	
+	//DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, true, obj->secondtranslation, obj->flags);
+
 	if (draw_obj)
 		DrawStretchedBitmap(pdib, obj_rect, inc, 0, 0, 0);
 	
 	// Draw overlays
 	//if (obj->overlays != NULL)
-	//DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, False, obj->secondtranslation, obj->flags);
+	//DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, false, obj->secondtranslation, obj->flags);
 	
 	if (!copy) 
 		return;
@@ -214,29 +214,29 @@ void DrawObjectIcon(HDC hdc, ID icon, int group, Bool draw_obj, AREA *area, HBRU
 *   The object is drawn transparently onto an area with background color given by brush.
 *   If brush is NULL, doesn't erase background first (allows caller to put background there).
 *   The object is drawn to an offscreen buffer, and stretched larger if necessary.
-*   If draw_obj is False, draw only overlays, and not object itself.
+*   If draw_obj is false, draw only overlays, and not object itself.
 *   The object is drawn at (x, y) on the offscreen bitmap.
-*   If copy is False, don't copy to hdc; just leave on offscreen bitmap.
+*   If copy is false, don't copy to hdc; just leave on offscreen bitmap.
 */
-void DrawObject(HDC hdc, object_node *obj, int group, Bool draw_obj, AREA *area, HBRUSH brush,
-				int x, int y, int angle, Bool copy)
+void DrawObject(HDC hdc, object_node *obj, int group, bool draw_obj, AREA *area, HBRUSH brush,
+                int x, int y, int angle, bool copy)
 {
 	int draw_size;
 	int width, height, obj_shrink, temp, inc;
 	RECT rect, obj_rect, max_rect;
 	PDIB pdib;
-	Bool has_overlay = False;
+	bool has_overlay = false;
 	
 	if (NULL == obj) // if we pass in a null pointer then abort early
 		return;
 	
 	// If object larger than offscreen buffer, we'll have to stretch it down
-	draw_size = min(max(OFFSCREEN_BITMAP_SIZE - x, OFFSCREEN_BITMAP_SIZE - y), 
-		max(area->cx, area->cy));
-	
+	draw_size = std::min(std::max(OFFSCREEN_BITMAP_SIZE - x, OFFSCREEN_BITMAP_SIZE - y),
+		std::max(area->cx, area->cy));
+
 	SelectPalette(hdc, hPal, FALSE);
 	RealizePalette(hdc);
-	
+
 	pdib = GetObjectPdib(obj->icon_res, angle, group);
 	if (pdib == NULL)
 		return;
@@ -263,30 +263,30 @@ void DrawObject(HDC hdc, object_node *obj, int group, Bool draw_obj, AREA *area,
 	height = max_rect.bottom - max_rect.top;
 	
 	/* Stretch object to just fit in square */
-	inc = (max(width, height) << FIX_DECIMAL) / draw_size;
-	
+	inc = (std::max(width, height) << FIX_DECIMAL) / draw_size;
+
 	if (draw_obj || has_overlay)
 	{
 		// Center object in drawing square
 		temp = draw_size - (width << FIX_DECIMAL) / inc;
 		obj_rect.left  = x + temp / 2 - DIVUP((max_rect.left << FIX_DECIMAL), inc);
 		obj_rect.right = obj_rect.left + DIVUP((DibWidth(pdib) << FIX_DECIMAL), inc);
-		
+
 		temp = draw_size - (height << FIX_DECIMAL) / inc;
 		obj_rect.top    = y + temp / 2 - DIVUP((max_rect.top << FIX_DECIMAL), inc);
 		obj_rect.bottom = obj_rect.top + DIVUP((DibHeight(pdib) << FIX_DECIMAL), inc);
 	}
-	
+
 	// Draw underlays
 	if (obj->overlays != NULL)
-		DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, True, obj->secondtranslation, obj->flags, angle);
-	
+		DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, true, obj->secondtranslation, obj->flags, angle);
+
 	if (draw_obj)
 		DrawStretchedBitmap(pdib, obj_rect, inc, obj->translation, obj->secondtranslation, obj->flags);
 	
 	// Draw overlays
 	if (obj->overlays != NULL)
-		DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, False, obj->secondtranslation, obj->flags, angle);
+		DrawOverlays(pdib, &obj_rect, *(obj->overlays), inc, false, obj->secondtranslation, obj->flags, angle);
 	
 	if (!copy) 
 		return;
@@ -302,12 +302,12 @@ void DrawObject(HDC hdc, object_node *obj, int group, Bool draw_obj, AREA *area,
 * DrawOverlays:  Draw overlays on object whose bitmap is pdib_obj.
 *   obj_rect is the rectangle containing the object.
 *   inc tells how far to step on pdib_obj per pixel of obj_rect (fixed point).
-*   If underlays is True, draw only those overlays which should be drawn
+*   If underlays is true, draw only those overlays which should be drawn
 *     before the object is drawn.
 *   flags is a set of object flags, specifying any special drawing effects.
 */
 void DrawOverlays(PDIB pdib_obj, RECT *obj_rect, list_type overlays, 
-				  int inc, Bool underlays, BYTE secondtranslation, int flags, int angle)
+                  int inc, bool underlays, BYTE secondtranslation, int flags, int angle)
 {
 	RECT rect;
 	list_type l;
@@ -411,10 +411,10 @@ void DrawStretchedBitmap(PDIB pdib, RECT rect, int inc, BYTE translation, BYTE s
 	ObjectRowData d;
 	
 	// Bring rectangle into range to prevent crashes
-	rect.left   = max(rect.left, 0);
-	rect.right  = min(rect.right, OFFSCREEN_BITMAP_SIZE - 1);
-	rect.top    = max(rect.top, 0);
-	rect.bottom = min(rect.bottom, OFFSCREEN_BITMAP_SIZE - 1);
+	rect.left   = std::max(rect.left, 0L);
+	rect.right  = std::min(rect.right, (long)(OFFSCREEN_BITMAP_SIZE - 1));
+	rect.top    = std::max(rect.top, 0L);
+	rect.bottom = std::min(rect.bottom, (long)(OFFSCREEN_BITMAP_SIZE - 1));
 	
 	bitmap_width = DibWidth(pdib);
 	obj_bits = DibPtr(pdib);
@@ -483,14 +483,14 @@ void DrawStretchedBitmap(PDIB pdib, RECT rect, int inc, BYTE translation, BYTE s
 * ComputeObjectBoundingBox:  Find the smallest rectangle that encloses
 *   the object and its overlay bitmaps at angle 0, and put it in rect.
 *   pdib is the object's bitmap; overlays is the list of its overlays.
-*   include_object is True iff object bitmap should be included in bounding box.
-*   Returns True iff the object has any visible overlays at angle 0.
+*   include_object is true iff object bitmap should be included in bounding box.
+*   Returns true iff the object has any visible overlays at angle 0.
 */
-Bool ComputeObjectBoundingBox(PDIB pdib, list_type overlays, Bool include_object, RECT *max_rect, int angle)
+bool ComputeObjectBoundingBox(PDIB pdib, list_type overlays, bool include_object, RECT *max_rect, int angle)
 {
 	list_type l;
 	int obj_shrink, shrink, x, y;
-	Bool has_overlay = False;
+	bool has_overlay = false;
 	
 	max_rect->left = max_rect->top = 0;
 	if (include_object)
@@ -533,14 +533,14 @@ Bool ComputeObjectBoundingBox(PDIB pdib, list_type overlays, Bool include_object
 		}
 		else
 		{
-			max_rect->left = min(max_rect->left, x);
-			max_rect->top  = min(max_rect->top, y);
+			max_rect->left = std::min((int)max_rect->left, x);
+			max_rect->top  = std::min((int)max_rect->top, y);
 		}
+
+		max_rect->right  = std::max((int)max_rect->right, x + DibWidth(pdib_ov) * obj_shrink / shrink);
+		max_rect->bottom = std::max((int)max_rect->bottom, y + DibHeight(pdib_ov) * obj_shrink / shrink);
 		
-		max_rect->right  = max(max_rect->right, x + DibWidth(pdib_ov) * obj_shrink / shrink);
-		max_rect->bottom = max(max_rect->bottom, y + DibHeight(pdib_ov) * obj_shrink / shrink);
-		
-		has_overlay = True;
+		has_overlay = true;
 	}
 	return has_overlay;
 }
@@ -559,8 +559,8 @@ void CreateWindowBackground(void)
 		debug(("Couldn't lock resource!\n"));      
 	bkgnd.bits = ((BYTE *) ptr) + sizeof(BITMAPINFOHEADER) + NUM_COLORS * sizeof(RGBQUAD);
 	
-	bkgnd.height = min(ptr->biHeight, OFFSCREEN_BITMAP_SIZE);
-	bkgnd.width  = min(ptr->biWidth, OFFSCREEN_BITMAP_SIZE);
+	bkgnd.height = std::min((int)ptr->biHeight, OFFSCREEN_BITMAP_SIZE);
+	bkgnd.width  = std::min((int)ptr->biWidth, OFFSCREEN_BITMAP_SIZE);
 }
 /************************************************************************/
 /*
@@ -608,10 +608,10 @@ void DrawWindowBackgroundColor(RawBitmap *bg, HDC hdc, RECT *rect, int xin, int 
 				{
 					x = rect->left;
 					xoffset = xin % bg->width;
-					height = min(bg->height - yoffset, rect->bottom - y);
+					height = std::min((LONG)(bg->height - yoffset), rect->bottom - y);
 					while (x < rect->right)
 					{
-						width = min(bg->width - xoffset, rect->right - x);
+						width = std::min((LONG)(bg->width - xoffset), rect->right - x);
 						BitBlt(hdc, x, y, width, height, gOffscreenDC, xoffset, yoffset, SRCCOPY);
 						x += bg->width - xoffset;
 						xoffset = 0;
@@ -648,10 +648,10 @@ void DrawWindowBackgroundMem(RawBitmap *bg, BYTE *ptr, RECT *r, int block_width,
 	{
 		x = r->left;
 		xoffset = xin % bg->width;
-		height = min(bg->height - yoffset, r->bottom - y);
+		height = std::min(bg->height - yoffset, (int)(r->bottom - y));
 		while (x < r->right)
 		{
-			width = min(bg->width - xoffset, r->right - x);
+			width = std::min(bg->width - xoffset, (int)(r->right - x));
 			
 			gptr = ptr + x + y * block_width;
 			bkgnd_ptr = bg->bits + xoffset + yoffset * bg->width;

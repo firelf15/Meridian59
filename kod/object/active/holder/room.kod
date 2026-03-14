@@ -26,6 +26,7 @@ resources:
 
    room_door_is_locked = "This door is locked."
    room_sound_locked = doorlck.wav
+   room_sound_locked_female = doorlckf.wav
 
    room_move_req_no = "You're unable to change rooms."
 
@@ -67,7 +68,8 @@ resources:
    % Unlike the rest of these, this is actually a stormy sky.
    background_stormy_sky = 3sky.bgf
 
-   creaky_door_sound = doropen1.wav
+   door_open_sound = doropen1.ogg
+   door_close_sound = dorclose.ogg
 
    water_wading_sound = splash.wav
 
@@ -177,7 +179,8 @@ classvars:
    % Used to determine sounds and by some spells to gauge bonuses
    viTerrain_type = 0
 
-   vrDoor_sound = creaky_door_sound
+   vrDoor_open_sound = door_open_sound
+   vrDoor_close_sound = door_close_sound
    vrWading_Sound = water_wading_sound
 
    viFlag_row = $
@@ -395,23 +398,51 @@ messages:
 
    Recreate()
    {
-      local cClass, lUsers, oNewRoom, i;
+      local cClass, lUsers, oNewRoom, i, lActiveObjects, oActiveObject, oOldRoom;
 
       lUsers = $;
+      lActiveObjects = $;
       cClass = GetClass(self);
+      oOldRoom = self;
+
+      % Collect users and all active objects
       for i in plActive
       {
-         if isClass(first(i),&User)
+         oActiveObject = First(i);
+         if oActiveObject <> $
          {
-            lUsers = Cons(first(i),lUsers);
+            lActiveObjects = Cons(oActiveObject,lActiveObjects);
+            if IsClass(oActiveObject,&User)
+            {
+               lUsers = Cons(oActiveObject,lUsers);
+            }
          }
       }
 
-      Send(self,@Delete);
+      % Remove old room from the system room list, allowing us to create a new one
+      Send(SYS,@DeleteRoom,#what=oOldRoom);
+      
+      % Create the new room
       Send(SYS,@CreateOneRoomIfNew,#num=piRoom_num,#class=cClass);
+      oNewRoom = Send(SYS,@FindRoomByNum,#num=piRoom_num);
+      
+      if oNewRoom = $
+      {
+         debug("Recreate: Failed to create new room, RID:",piRoom_num);
+         return;
+      }
+
+      % Send message to all active objects in the old room that want to preserve themselves
+      for i in lActiveObjects
+      {
+         Send(i,@OnRoomRecreated,#old_room=oOldRoom,#new_room=oNewRoom);
+      }
+
+      % Now fully delete the old room and teleport users back to the (new) room
+      Send(oOldRoom,@Delete);
+
       for i in lUsers
       {
-         oNewRoom = Send(SYS,@FindRoomByNum,#num=piRoom_num);
          Send(oNewRoom,@Teleport,#what=i);
       }
 
@@ -701,7 +732,7 @@ messages:
    {
       local oSpell, oCaster;
 
-      oSpell = Send(SYS,@FindSpellByNum,#Num=SID_DEATHLINK);
+      oSpell = Send(SYS,@FindSpellByNum,#Num=SID_DEATH_LINK);
 
       if Send(self,@IsEnchanted,#what=oSpell)
       {
@@ -885,11 +916,6 @@ messages:
          return RID_KOCATAN;
       }
 
-      if (piRoom_num = RID_GUILDH12) or (piRoom_num = RID_GUILDH13)
-      {
-         return RID_KOCATAN;
-      }
-
       if (piRoom_num >= RID_ORC_CAVE1) and (piRoom_num <= RID_ORC_CAVE_END)
       {
          return RID_ORC_CAVE1;
@@ -898,16 +924,6 @@ messages:
       if (piRoom_num >= RID_BRAX_START) and (piRoom_num <= RID_BRAX_END)
       {
          return RID_BRAX;
-      }
-
-      if piRoom_num = RID_GUILDH15
-      {
-         return RID_BRAX;
-      }
-
-      if piRoom_num = RID_OUTOFGRACE
-      {
-         return RID_OUTOFGRACE;
       }
 
       return RID_DEFAULT;
@@ -1009,7 +1025,6 @@ messages:
          ptPeriodic_sounds = $;
       }
 
-      Send(SYS,@DeleteRoom,#what=self);
       Send(self,@RemoveAllEnchantments);
 
       propagate;
@@ -1201,28 +1216,7 @@ messages:
       if Send(self,@IsArena)
       {
          oWatcher = Send(self,@GetWatcher);
-
-         % if a fight isnt in session, attack fails.
-         if NOT Send(oWatcher,@FightInSession)
-         {
-            return FALSE;
-         }
-
-         % if the afflicted person is not a combatant, attack fails.
-         if IsClass(victim,&Player)
-            AND NOT Send(oWatcher,@IsCombatant,#who=victim)
-         {
-            return FALSE;
-         }
-
-         % if the caster is not a combatant, attack fails.
-         if NOT Send(oWatcher,@IsCombatant,#who=what)
-         {
-            return FALSE;
-         }
-
-         % Anything else is legal in the Arena.
-         return TRUE;
+         return ((oWatcher = $) OR Send(oWatcher,@ReqSomethingAttack,#what=what,#victim=victim));
       }
       
       if (piRoom_flags & ROOM_NO_MOB_COMBAT)
@@ -1390,7 +1384,7 @@ messages:
 
    ModifyChanceToImprove(who=$,oSpellSkill=$,chance=0)
    "This takes a spell/skill that who is trying to advance and modifies the "
-   "improve_chance.  This supercedes (but still supports) the ROOM_HARD_LEARN "
+   "improve_chance.  This supersedes (but still supports) the ROOM_HARD_LEARN "
    "flag."
    {
       if Send(self,@CheckRoomFlag,#flag=ROOM_HARD_LEARN)
@@ -1603,7 +1597,7 @@ messages:
 
    RecalcLightAndWeather()
    {
-      local i,each_obj,iWeather, iRand;
+      local iWeather;
 
       % Change weather for background if outdoors and tell everyone the
       %  background changed
@@ -1675,7 +1669,7 @@ messages:
 
    ReqNewHold(what = $,new_row = $,new_col = $)
    {
-      local i,each_obj,square_type;
+      local i,each_obj;
 
       for i in plActive
       {
@@ -1699,13 +1693,20 @@ messages:
            fine_row = FINENESS/2, fine_col = FINENESS/2, session = $,
            merge = TRUE)
    {
-      local i,each_obj,bUser, lLoopSound;
+      local i,each_obj,bUser;
 
       if what = $
       {
          return;
       }
 
+		% Guard against admin mode mistakes
+		if what = self
+		{
+			Debug("Tried to have room hold itself!");
+			return;
+	   }
+		
       bUser = IsClass(what,&User);
 
       if new_row = $ OR new_col = $ OR fine_row = $ OR fine_col = $
@@ -1765,7 +1766,7 @@ messages:
          AND Send(what,@GetOwner) <> $
          AND IsClass(Send(what,@GetOwner),&Player)
       {
-         % Check the time currently left on the dipose timer.  Reset the timer
+         % Check the time currently left on the dispose timer.  Reset the timer
          %  to a minute if we have less than a minute left.  This should cut
          %  down on cases of someone dropping an object and it being cleaned up
          %  immediately afterwards.
@@ -1787,6 +1788,16 @@ messages:
                  #new_col=Nth(new_pos,2));
          }
 
+         if NOT Send(what,@CheckPlayerFlag,#flag=PFLAG_ANONYMOUS)
+               AND NOT Send(what,@CheckPlayerFlag,#flag=PFLAG_INVISIBLE)
+         {
+            for i in plActive
+            {
+               each_obj = First(i);
+               Send(each_obj,@UserEntered,#who=what);
+            }
+         }
+
          % Now send music.
          Send(what,@SendRoomMusic,#music_rsc=prMusic);
 
@@ -1801,6 +1812,20 @@ messages:
          }
       }
 
+      return;
+   }
+
+   ResendRoomBackgroundMusic()
+   {
+      local i;
+
+      for i in Send(self,@GetHolderActive)
+      {
+         if IsClass(first(i),&user)
+         {
+            Send(first(i),@SendRoomMusic,#music_rsc=prMusic);
+         }
+      }
       return;
    }
 
@@ -1906,6 +1931,9 @@ messages:
          propagate;
       }
 
+      % Break trance if the user is in one
+      Send(what,@BreakTrance,#event=EVENT_NEWOWNER);
+
       % unenchant this one occupant
       for i in plEnchantments
       {
@@ -2002,7 +2030,7 @@ messages:
    "<server_validate> is set to false for user moves, which have already been "
    "checked by client (HAHA!)."
    {
-      local i, each_obj, iRow, iCol, iLOS;
+      local iRow, iCol, iLOS;
 
       if new_row > piRows OR new_row < 1 OR new_col > piCols OR new_col < 1
       {
@@ -2437,6 +2465,12 @@ messages:
    {
       local i,each_obj;
 
+      if sector = $
+      {
+         debug("SetSector called with missing sector ID");
+         return;
+      }
+
       % tell everyone in the room at the moment about the change
 
       for i in plActive
@@ -2550,8 +2584,15 @@ messages:
    }
 
    ChangeTexture(id = $,new_texture = $,flags = 0)
+   "Set a texture override for the given server ID.  Return TRUE on success."
    {
       local i,each_obj;
+
+      if id = $ 
+      {
+         debug("Tried to change texture with $ server ID");
+         return FALSE;
+      }
 
       % tell everyone in the room at the moment about the change
       for i in plActive
@@ -2571,14 +2612,14 @@ messages:
          {
             SetNth(i,2,new_texture);
 
-            return;
+            return TRUE;
          }
       }
 
       % not already in list, so add
       plTexture_changes = Cons([ id, new_texture, flags ], plTexture_changes);
 
-      return;
+      return TRUE;
    }
 
    HolderExtractObject(data = $)
@@ -2731,7 +2772,7 @@ messages:
                   Send(what,@MsgSendUser,#message_rsc=room_door_is_locked);
                }
 
-               Send(what,@WaveSendUser,#wave_rsc=room_sound_locked);
+               Send(self,@SendLockedRoomSound,#who=what);
 
                return TRUE;
             }
@@ -2748,11 +2789,38 @@ messages:
                           #iAngle=Send(what,@GetAngle),
                           #iAngle_Change=Nth(i,6));
 
-            Send(what,@WaveSendUser,#wave_rsc=Send(self,@GetDoorSound));
+            % Play door sound at the door's location.  DMs/Admins are silent
+            % to avoid revealing their presence.  If DoorSoundShared is enabled,
+            % all players in room hear it; otherwise only the opener hears it
+            % (non-positional).
+            if NOT IsClass(what,&DM)
+            {
+               if Send(Send(SYS,@GetSettings),@DoorSoundSharedEnabled)
+               {
+                  Send(self,@SomethingWaveRoom,#wave_rsc=vrDoor_open_sound,
+                       #row=row,#col=col,#cutoff_radius=4);
+               }
+               else
+               {
+                  Send(what,@WaveSendUser,#wave_rsc=vrDoor_open_sound);
+               }
+            }
 
             Send(SYS,@UtilGoNearSquare,#what=what,
                  #where=Send(SYS,@FindRoomByNum,#num=Nth(i,3)),
                  #new_row=Nth(i,4),#new_col=Nth(i,5),#new_angle=iAngle);
+
+            % Play door closing sound from the opener's position in the
+            % destination room.  The opener is excluded.  When DoorSoundShared
+            % is disabled, no close sound is played.
+            if NOT IsClass(what,&DM)
+               AND Send(Send(SYS,@GetSettings),@DoorSoundSharedEnabled)
+            {
+               Send(Send(what,@GetOwner),@SomethingWaveRoom,
+                    #wave_rsc=vrDoor_close_sound,
+                    #row=Send(what,@GetRow),#col=Send(what,@GetCol),
+                    #cutoff_radius=4,#except=what);
+            }
 
             return TRUE;
          }
@@ -2761,19 +2829,21 @@ messages:
       propagate;
    }
 
-   GetDoorSound()
+   SomethingWaveRoom(what = 0, wave_rsc = $, row = 0, col = 0,
+                     cutoff_radius = 0, except = $)
+   "Plays a sound for all users in the room.  Sends WaveSendUser to each "
+   "user with the provided wave_rsc, source object, row, col, and "
+   "cutoff_radius.  If except is set, that user is skipped."
    {
-      return vrDoor_sound;
-   }
-
-   SomethingWaveRoom(what = 0,wave_rsc = $)
-   "Don't send <what> if not from any particular object"
-   {
-      local i,each_obj;
+      local i;
 
       for i in plActive
       {
-         Send(First(i),@WaveSendUser,#wave_rsc=wave_rsc,#source_obj=what);
+         if First(i) <> except
+         {
+            Send(First(i),@WaveSendUser,#wave_rsc=wave_rsc,#source_obj=what,
+                 #row=row,#col=col,#cutoff_radius=cutoff_radius);
+         }
       }
 
       return;
@@ -2781,7 +2851,7 @@ messages:
 
    EnchantmentTimer(timer = $)
    {
-      local i,oEnchanter;
+      local i;
 
       for i in plEnchantments
       {
@@ -2810,7 +2880,7 @@ messages:
 
    PeriodicEnchantmentTimer(timer = $)
    {
-      local i,oEnchanter;
+      local i;
 
       for i in plEnchantments
       {
@@ -3262,7 +3332,7 @@ messages:
       return viTerrain_Type;
    }
 
-   BreakTrance(who=$, event=$)
+   BreakTrance(who=$, event=$, castwhat=$, usewhat=$)
    {
       local i, oEnch, lState, bRetVal;
 
@@ -3276,8 +3346,7 @@ messages:
             lState = Nth(i,3);
             if who = Nth(lState,2)
             {
-               bRetVal = Send(oEnch,@BreakTrance,#who=who,#event=event,
-                              #state=lState,#location=self);
+               bRetVal = Send(oEnch,@BreakTrance,#who=who,#event=event,#state=lState,#castwhat=castwhat,#usewhat=usewhat);
             }
          }
 
@@ -3288,8 +3357,7 @@ messages:
             lState = Nth(i,3);
             if who = First(lState)
             {
-               bRetVal = Send(oEnch,@BreakTrance,#who=who,#event=event,
-                              #state=lState,#location=self);
+               bRetVal = Send(oEnch,@BreakTrance,#who=who,#event=event,#state=lState,#location=self,#castwhat=castwhat);
             }
          }
       }
@@ -3299,7 +3367,7 @@ messages:
 
    RemoveSchoolEnchantments(school = $,report=TRUE)
    {
-      local i,pSpell,each_obj,oSpell;
+      local i,each_obj,oSpell;
 
       for i in plEnchantments
       {
@@ -3328,7 +3396,7 @@ messages:
 
    DispelIllusionEnchantments(report = TRUE, iChance = 100)
    {
-      local i,pSpell,each_obj,oSpell;
+      local i,each_obj,oSpell;
 
       for i in plEnchantments
       {
@@ -3852,8 +3920,11 @@ messages:
    CanHavePlayerPortal()
    "Return whether it's permissible to have a player-created portal in this room. "
    {
-      % No portals into "historic" (i.e. inaccessible, dead) areas
-      if Send(self, @GetRegion) = RID_HISTORIC
+      % No portals in 
+      % - "historic" (i.e. inaccessible, dead) areas
+      % - "No combat" rooms like inns, adv halls, rented rooms, and others
+      if Send(self,@GetRegion) = RID_HISTORIC
+         OR Send(self,@CheckRoomFlag,#flag=ROOM_NO_COMBAT) 
       {
          return FALSE;
       }
@@ -3937,5 +4008,48 @@ messages:
       return;
    }
 
+   SendLockedRoomSound(who=$)
+   {
+      if Send(who,@GetGender) = GENDER_FEMALE
+      {
+         Send(who,@WaveSendUser,#wave_rsc=room_sound_locked_female);
+      }
+      else
+      {
+         Send(who,@WaveSendUser,#wave_rsc=room_sound_locked);
+      }
+
+      return;
+   }
+
+   FindBadTextureChanges()
+   "Print any texture changes with $ as the sector ID"
+   {
+      local i;
+      for i in plTexture_changes
+      {
+         if First(i) = $ 
+         {
+            debug("Room", piRoom_num, "id", self, "has bad texture change", i);
+         }
+      }
+
+      return;
+   }
+
+   FindBadSectorChanges()
+   "Print any sector changes with $ as the sector ID"
+   {
+      local i;
+      for i in plSector_changes
+      {
+         if First(i) = $ 
+         {
+            debug("Room", piRoom_num, "id", self, "has bad sector change", i);
+         }
+      }
+
+      return;
+   }
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

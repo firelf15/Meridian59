@@ -93,7 +93,7 @@ Bool Debug = FALSE;			/* are we debugging? */
 Bool Quiet = FALSE;			/* don't play a sound when an object is selected */
 Bool Quieter = FALSE;		/* don't play any sound, even when an error occurs */
 Bool Expert = FALSE;		/* don't ask for confirmation for some operations */
-char *CfgFile = DEU_CONFIG_FILE;/* name of the configuration file */
+const char *CfgFile = DEU_CONFIG_FILE;/* name of the configuration file */
 int  InitialScale = 8;		/* initial zoom factor for map */
 Bool Colour2 = FALSE;		/* use the alternate set for things colors */
 Bool InfoShown = TRUE;		/* should we display the info bar? */
@@ -113,6 +113,7 @@ char *BitmapDir = NULL;         /* Directory where bitmaps reside */
 char *BitmapSpec  = NULL;       /* Filespec of bitmap files */
 char *KodDir = NULL;
 char *ServerDir = NULL;
+char *RoomDir = NULL;
 char *EntranceData = NULL;
 
 // Grid info.
@@ -131,6 +132,7 @@ BOOL   GridShown  = FALSE;
 #define DEFAULT_BITMAP_SPEC     "grd*.bgf"
 #define DEFAULT_KOD_DIR				"..\\kod\\"
 #define DEFAULT_SERVER_DIR      	"..\\run\\server\\"
+#define DEFAULT_ROOM_DIR      	"..\\resource\\rooms\\"
 #define DEFAULT_ENTRANCE_FILE		"entrance.dat"
 
 char *DefaultWallTexture;		/* default normal wall texture */
@@ -201,6 +203,7 @@ OptDesc options[] =
 	{ "sc", "autoscroll",  	OPT_BOOLEAN,   NULL,   							NULL,  						&AutoScroll			},
 	{ "kod", "koddir",   	OPT_STRING,    NULL,								NULL,                   &KodDir			 	},
 	{ "svr", "serverdir",   OPT_STRING,    NULL,								NULL,                   &ServerDir			},
+	{ "roo", "roomdir",   OPT_STRING,    NULL,								NULL,                   &RoomDir			},
 	{ "ent", "entrances", 	OPT_STRING,		NULL,								NULL,							&EntranceData		},
 	{ NULL, NULL,          	OPT_END,       NULL,								NULL,                   NULL           	}
 };
@@ -249,6 +252,8 @@ void InitWindeu (int argc, char **argv, char *init_level)
 	strcpy (KodDir, DEFAULT_KOD_DIR);
 	ServerDir = (char *)GetMemory (strlen(DEFAULT_SERVER_DIR)+1);
 	strcpy (ServerDir, DEFAULT_SERVER_DIR);
+	RoomDir = (char *)GetMemory (strlen(DEFAULT_ROOM_DIR)+1);
+	strcpy (RoomDir, DEFAULT_ROOM_DIR);
 	EntranceData = (char*)GetMemory(strlen(DEFAULT_ENTRANCE_FILE)+1);
 	strcpy (EntranceData, DEFAULT_ENTRANCE_FILE);
 
@@ -312,15 +317,6 @@ void CleanupWindeu ()
 	Level = NULL;
 	ForgetWTextureInfo();
 	ForgetFTextureInfo();
-
-	// that's all, folks!
-	CloseWadFiles();
-
-  // Disabled 7/04 ARK
-//	UnloadKodObjects();
-//	UnloadKodRooms();
-//	SaveEntrances(EntranceData);
-//	CloseEntrances();
 
 	LogMessage( ": The end!\n\n\n");
 	CloseLog();
@@ -559,7 +555,7 @@ void ParseCommandLineOptions( int argc, char *argv[], char *init_level)
    read the config file
 */
 
-void ParseConfigFileOptions(char *filename)
+void ParseConfigFileOptions(const char *filename)
 {
 	FILE *cfgfile;
 	char  line[1024];
@@ -765,7 +761,7 @@ void PlaySound( int /*freq*/, int /*msec*/)
    terminate the program reporting an error
 */
 
-void ProgError( char *errstr, ...)
+void ProgError( const char *errstr, ...)
 {
 	TRACE ("ProgError: start");
 	static char msg[256];	// Safer than on stack
@@ -822,7 +818,7 @@ void CloseLog(void)
    }
 }
 
-void LogMessage(char *logstr, ...)
+void LogMessage(const char *logstr, ...)
 {
 	va_list  args;
 	time_t   tval;
@@ -855,7 +851,7 @@ void LogMessage(char *logstr, ...)
 }
 
 
-void LogError(char *logstr, ...)
+void LogError(const char *logstr, ...)
 {
 	va_list  args;
 	time_t   tval;
@@ -892,7 +888,7 @@ void LogError(char *logstr, ...)
    write a message in the status bar of the main frame
 */
 
-void WorkMessage (char *workstr, ...)
+void WorkMessage (const char *workstr, ...)
 {
 	va_list  args;
 	static char msg[256];
@@ -930,7 +926,7 @@ void GetWorkMessage (char *buffer, size_t bufferSize)
    Ask the user to confirm a choice (message box)
 */
 
-BOOL Confirm(char *confstr, ...)
+BOOL Confirm(const char *confstr, ...)
 {
 	va_list  args;
 	char msg[256];	// Safer than on stack
@@ -952,7 +948,7 @@ BOOL Confirm(char *confstr, ...)
 	Notify the user of a message in a message box
 */
 
-void Notify(char *notstr, ...)
+void Notify(const char *notstr, ...)
 {
 	va_list  args;
 	char msg[256];

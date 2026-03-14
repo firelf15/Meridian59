@@ -16,7 +16,7 @@ constants:
 
 resources:
 
-   room_Kocatanhall = Kochoh.roo
+   room_Kocatanhall = kochoh.roo
    room_name_Kocatanhall = "The Hall of Heroes"
 
    Kocatanhall_music = extra01.mid
@@ -105,7 +105,7 @@ messages:
 
    CreateStandardObjects()
    {
-      local oNews, oStatue;
+      local oNews;
 
       oNews = Create(&Newslink,#nid=NID_TOS_HALL,#name=news_Kocatan_hall,
                      #desc=news_Kocatan_hall_desc);

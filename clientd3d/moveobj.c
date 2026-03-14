@@ -99,13 +99,13 @@ void MoveObject2(ID object_id, int x, int y, BYTE speed, BOOL turnToFace)
 	}
 
 	// If animation off, don't interpolate motion
-	if (speed == 0 || !config.animate)
+	if (speed == 0)
 	{
 		r->motion.x = x;
 		r->motion.y = y;
 		RoomObjectSetHeight(r);
 		ObjectStopAnimation(&r->obj);
-		r->moving = False;
+		r->moving = false;
 		return;
 	}
 	
@@ -127,13 +127,13 @@ void MoveObject2(ID object_id, int x, int y, BYTE speed, BOOL turnToFace)
       // (new distance remaining to move) / (old distance remaining to move)
 		dx = r->motion.x - x;
 		dy = r->motion.y - y;
-		new_remaining = GetFloatSqrt((float)(dx * dx + dy * dy)) / (float)FINENESS;
+		new_remaining = sqrtf((float)(dx * dx + dy * dy)) / (float)FINENESS;
 
 		if (new_remaining > 1.0f)
 		{
 			dx = r->motion.dest_x - r->motion.source_x;
 			dy = r->motion.dest_y - r->motion.source_y;
-			old_remaining = GetFloatSqrt((float)(dx * dx + dy * dy)) / (float)FINENESS;
+			old_remaining = sqrtf((float)(dx * dx + dy * dy)) / (float)FINENESS;
 
 			if (old_remaining == 0)
 				old_remaining = 0.00001f;
@@ -165,13 +165,13 @@ void MoveObject2(ID object_id, int x, int y, BYTE speed, BOOL turnToFace)
 		r->motion.increment = 1.0;
 	else 
 	{
-		float distance = GetFloatSqrt((float)(dx * dx + dy * dy)) / (float)FINENESS;
+		float distance = sqrtf((float)(dx * dx + dy * dy)) / (float)FINENESS;
 		// Object motion is given in # of grid squares per 10 seconds
 		r->motion.increment = (((float) r->motion.speed) / 10000.0f) / distance;
 	}
 	
-	r->motion.move_animating = True;
-	r->moving = True;
+	r->motion.move_animating = true;
+	r->moving = true;
 	
 	if (hanging)
 	{
@@ -183,19 +183,19 @@ void MoveObject2(ID object_id, int x, int y, BYTE speed, BOOL turnToFace)
 	else if (z > r->motion.source_z)
 		r->motion.v_z = CLIMB_VELOCITY_0;
 	
-	RoomObjectSetAnimation(r, True);
+	RoomObjectSetAnimation(r, true);
 }
 /************************************************************************/
 /*  
 * ObjectsMove:  Called when animation timer goes off.  Incrementally move
 *   objects whose motion is interpolated.
 *   dt is number of milliseconds since last time animation timer went off.
-*   Return True iff at least one object was moved.
+*   Return true iff at least one object was moved.
 */
-Bool ObjectsMove(int dt)
+bool ObjectsMove(int dt)
 {
 	list_type l;
-	Bool retval = False;
+	bool retval = false;
 	
 	for (l = current_room.contents; l != NULL; l = l->next)
 	{
@@ -213,17 +213,17 @@ Bool ObjectsMove(int dt)
 		}
 		if (r->moving)
 		{
-			retval = True;
+			retval = true;
 			if (MoveSingle(&r->motion, dt))
 			{
 				// Object has finished its interpolated move
-				r->moving = False;
+				r->moving = false;
 				
 				// Restore original animation, if using move animation
 				if (r->motion.move_animating)
-					RoomObjectSetAnimation(r, False);
+					RoomObjectSetAnimation(r, false);
 				
-				r->motion.move_animating = False;
+				r->motion.move_animating = false;
 			}
 			
 			// Rest object on floor if it's not moving vertically
@@ -235,7 +235,7 @@ Bool ObjectsMove(int dt)
 			if (!(OF_PLAYER & r->obj.flags))
 			{
 				int floor,ceiling,angleBounce,bounceHeight;
-				r->obj.bounceTime += min(dt,40);
+				r->obj.bounceTime += std::min(dt,40);
 				if (r->obj.bounceTime > TIME_FULL_OBJECT_BOUNCE)
 					r->obj.bounceTime -= TIME_FULL_OBJECT_BOUNCE;
 				angleBounce = NUMDEGREES * r->obj.bounceTime / TIME_FULL_OBJECT_BOUNCE;
@@ -245,12 +245,12 @@ Bool ObjectsMove(int dt)
 					//int midPoint = floor + ((ceiling-floor)>>1);
 					r->motion.z = floor + OBJECT_BOUNCE_HEIGHT + bounceHeight;
 				}
-				retval = True;
+				retval = true;
 			}
 		}
 		if (r->motion.v_z != 0)
 		{
-			retval = True;
+			retval = true;
 			MoveSingleVertically(&r->motion, dt);
 		}
 	}
@@ -259,10 +259,10 @@ Bool ObjectsMove(int dt)
 /************************************************************************/
 /*
 * MoveSingle:  Move object described by given motion structure along its
-*   path.  Return True if object has reached the end of its motion.
+*   path.  Return true if object has reached the end of its motion.
 *   dt is number of milliseconds since last time animation timer went off.
 */
-Bool MoveSingle(Motion *m, int dt)
+bool MoveSingle(Motion *m, int dt)
 {
 	m->progress += (m->increment * dt);
 	if (m->progress >= 1.0)
@@ -270,14 +270,14 @@ Bool MoveSingle(Motion *m, int dt)
 		m->x = m->dest_x;
 		m->y = m->dest_y;
 		m->z = m->dest_z;
-		return True;
+		return true;
 	}
 	
-	m->x = FloatToInt(m->source_x + m->progress * (m->dest_x - m->source_x));
-	m->y = FloatToInt(m->source_y + m->progress * (m->dest_y - m->source_y));
-	m->z = FloatToInt(m->source_z + m->progress * (m->dest_z - m->source_z));
+	m->x = (int) (m->source_x + m->progress * (m->dest_x - m->source_x));
+	m->y = (int) (m->source_y + m->progress * (m->dest_y - m->source_y));
+	m->z = (int) (m->source_z + m->progress * (m->dest_z - m->source_z));
 
-	return False;
+	return false;
 }
 /************************************************************************/
 /*
@@ -292,7 +292,7 @@ void MoveSingleVertically(Motion *m, int dt)
 {
 	int dz = dt * m->v_z / 1000;
 	
-	m->z += FloatToInt((double)dz * gravityAdjust);
+	m->z += (int) ((double)dz * gravityAdjust);
 	if (dz > 0)   // Rising
 	{
 		if (m->z >= m->dest_z)
@@ -313,7 +313,7 @@ void MoveSingleVertically(Motion *m, int dt)
 		else
 		{
 			// Constant acceleration of gravity
-			m->v_z += FloatToInt(gravityAdjust * (double)(GRAVITY_ACCELERATION * dt / 1000));
+			m->v_z += (int) (gravityAdjust * (double)(GRAVITY_ACCELERATION * dt / 1000));
 		}
 	}
 }

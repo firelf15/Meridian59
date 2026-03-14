@@ -82,7 +82,7 @@ messages:
       propagate;
    }
 
-   GetStateValue(iSpellpower=$)
+   InitializeEnchantmentState(iSpellpower=$)
    {
       return iSpellpower;
    }
@@ -94,6 +94,19 @@ messages:
       iDuration = (40+iSpellPower/2) * 1000;
 
       return iDuration;
+   }
+
+   CanPayCosts(who = $, lTargets = $)
+   {
+      % check for enchantment already applied
+      if Send(who,@IsEnchanted,#what=self)
+      {
+         Send(who,@MsgSendUser,#message_rsc=KaraholsCurse_already_enchanted_rsc);
+
+         return FALSE;
+      }
+
+      propagate;
    }
 
    EndEnchantment(who=$, report=TRUE, state=0)

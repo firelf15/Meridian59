@@ -100,7 +100,7 @@ typedef struct {
    ID   name_res;       // Name resource of spell
    ID   desc_res;       // Resource ID of spell description string
    int  cost;           // Cost of choosing spell
-   Bool chosen;         // True when user has chosen spell
+   bool chosen;         // true when user has chosen spell
    BYTE school;         // School of spell
 } Spell;
 
@@ -110,32 +110,32 @@ typedef struct {
    ID   name_res;       // Name resource of skill
    ID   desc_res;       // Resource ID of skill description string
    int  cost;           // Cost of choosing skill
-   Bool chosen;         // True when user has chosen skill
+   bool chosen;         // true when user has chosen skill
 } Skill;
 
 void MakeChar(CharAppearance *ap_init, list_type spells_init, list_type skills_init);
 char *VerifyCharName(char *name);
 CharAppearance *CharAppearanceDestroy(CharAppearance *ap);
 void CharTabPageCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
-Bool VerifySettings(void);
+bool VerifySettings(void);
 void CharInfoValid(void);
 void CharInfoInvalid(void);
 
-BOOL CALLBACK CharNameDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK CharNameDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 void CharNameGetChoices(char *name, char *desc);
 
 void CharFaceInit(void);
-BOOL CALLBACK CharFaceDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK CharFaceDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 void CharFaceGetChoices(CharAppearance *ap, int *stats, BYTE *gender);
 void CharFaceExit(void);
 
-BOOL CALLBACK CharStatsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK CharStatsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 void CharStatsGetChoices(int *buf);
 int  CharStatsGetPoints(void);
 
-BOOL CALLBACK CharSpellsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK CharSpellsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
-BOOL CALLBACK CharSkillsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK CharSkillsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 extern int spell_points;                // Number of spells/skills points left
 
@@ -143,7 +143,7 @@ extern int spell_points;                // Number of spells/skills points left
 extern client_message msg_table[];
 
 extern ClientInfo *cinfo;         // Holds data passed from main client
-extern Bool        exiting;       // True when module is exiting and should be unloaded
+extern bool        exiting;       // true when module is exiting and should be unloaded
 
 extern HINSTANCE hInst;  // module handle
 

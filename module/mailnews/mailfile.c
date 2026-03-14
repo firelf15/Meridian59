@@ -12,6 +12,8 @@
  * The item data of each item in the list is the message number.
  */
 
+#include <vector>
+#include <string>
 #include "client.h"
 #include "mailnews.h"
 
@@ -23,8 +25,8 @@ static HWND hMsgList = NULL;  /* Invisible list box to hold names of saved mail 
 extern HWND hReadMailDlg; /* Non-NULL if Read Mail dialog is up */
 
 static int  MailFindIndex(int number);
-static Bool MailSaveMessage(char *msg, int msgnum);
-static Bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header);
+static bool MailSaveMessage(char *msg, int msgnum);
+static bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header);
 /****************************************************************************/
 /*
  * MailGetMessageList:  Load filenames of all mail messages, and store in a list box.
@@ -91,30 +93,30 @@ void MailDeleteMessageList(void)
 /*
  * MailLoadMessage:  Load mail message with given number.  Place at most
  *   max_chars characters of the message in the given buffer.
- *   Returns True iff successful.
+ *   Returns true iff successful.
  *   Assumes that Read Mail dialog is up.
  */
-Bool MailLoadMessage(int number, int max_chars, char *buf)
+bool MailLoadMessage(int number, int max_chars, char *buf)
 {
    int infile, numbytes, index;
    char filename[MAX_PATH + FILENAME_MAX];
 
    if ((index = MailFindIndex(number)) == -1)
-      return False;
+      return false;
 
    ListBox_GetText(hMsgList, index, filename);
 
    if ((infile = open(filename, _O_BINARY | _O_RDONLY)) == -1)
-      return False;
+      return false;
    
    if ((numbytes = read(infile, buf, max_chars - 1)) <= 0)
    {
       close(infile);
-      return False;
+      return false;
    }
    close(infile);
    buf[numbytes] = 0;
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
@@ -126,12 +128,16 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
 {
    int index, num_msgs, msgnum;
    char new_msg[MAXMAIL + 200 + MAX_SUBJECT + MAXUSERNAME * MAX_RECIPIENTS];
-   char *subject, *ptr, *subject_str;
-   int i, num;
+   const int subject_ids[] = {IDS_SUBJECT_ENGLISH, IDS_SUBJECT_GERMAN, IDS_SUBJECT_PORTUGUESE};
+   const int num_subjects = sizeof(subject_ids) / sizeof(subject_ids[0]);
+   auto subject_strs = std::vector<std::string>(num_subjects);
+   char *ptr;
+   int num;
+   int subject_id_index = 0;
    char filename[FILENAME_MAX + MAX_PATH];
    char date[MAXDATE];
    MailHeader header;
-   Bool subject_found = True;
+   bool subject_found = false;
 
    if (recipients == NULL)
    {
@@ -148,7 +154,7 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
 
    /* Add recipients' names */
    num = 0;
-   for (i = 0; i < num_recipients; i++)
+   for (int i = 0; i < num_recipients; i++)
    {
       if (num++ > 0)
          strcat(new_msg, ", "); 
@@ -156,21 +162,23 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
    }
    strcat(new_msg, "\r\n");
 
-   /* Take subject field out of main part of message */
-   subject_str = GetString(hInst, IDS_SUBJECT_ENGLISH);
-   if (strncmp(message, subject_str, strlen(subject_str)))
+   /* Search for subject line */
+   for (int i = 0; i < num_subjects; i++)
    {
-      subject_str = GetString(hInst, IDS_SUBJECT_GERMAN);
-      if (strncmp(message, subject_str, strlen(subject_str))) {
-         subject_found = False;
-         subject = "";
+      subject_strs[i] = GetString(hInst, subject_ids[i]);
+      if (strncmp(message, subject_strs[i].c_str(), subject_strs[i].size()) == 0)
+      {
+         subject_id_index = i;
+         subject_found = true;
+         break;
       }
    }
 
+   char *subject = nullptr;
    if (subject_found)
    {
-      /* Skip "Subject: " leader */
-      subject = message + strlen(subject_str);
+      /* Skip "Subject: " or other translation leading string */
+      subject = message + subject_strs[subject_id_index].size();
 
       /* Skip subject line; have to deal with \n (from users) or \r\n (from kod resources) */
       ptr = strchr(subject, '\n');
@@ -185,13 +193,15 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
    }
 
    /* Add "Subject:" field to message */
-   strcat(new_msg, subject_str);
-   strcat(new_msg, subject);
+   strcat(new_msg, subject_strs[subject_id_index].c_str());
+   if (subject != nullptr) {
+     strcat(new_msg, subject);
+   }
    strcat(new_msg, "\r\n");
    
    /* Add "Date:" field to message */
    date[0] = 0;
-   if (DateFromSeconds(msg_time, date) == True)
+   if (DateFromSeconds(msg_time, date) == true)
    {
       strcat(new_msg, GetString(hInst, IDS_DATE));      
       strcat(new_msg, date);      
@@ -209,7 +219,7 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
    else msgnum = ListBox_GetItemData(hMsgList, num_msgs - 1) + 1;
 
    /* If we save message ok, tell server that it can delete message */
-   if (MailSaveMessage(new_msg, msgnum) == True)
+   if (MailSaveMessage(new_msg, msgnum) == true)
       RequestDeleteMail(server_index);
 
    sprintf(filename, "%s\\%04d.msg", MAIL_DIR, msgnum);
@@ -223,33 +233,33 @@ void MailNewMessage(int server_index, char *sender, int num_recipients,
 /****************************************************************************/
 /*
  * MailSaveMessage:  Save given message string as given message number.
- *   Return True iff message successfully saved.
+ *   Return true iff message successfully saved.
  */
-Bool MailSaveMessage(char *msg, int msgnum)
+bool MailSaveMessage(char *msg, int msgnum)
 {
-   Bool done, saved;
+   bool done, saved;
    int outfile;
    char filename[MAX_PATH + FILENAME_MAX];
 
    do
    {
-      done = True;
+      done = true;
       /* If mail directory doesn't exist, try to create it */
       saved = MakeDirectory(MAIL_DIR);
       
       sprintf(filename, "%s\\%04d.msg", MAIL_DIR, msgnum);
       
       if ((outfile = open(filename, _O_BINARY | _O_RDWR | _O_CREAT, _S_IWRITE | _S_IREAD)) == -1)
-	 saved = False;
-      if (write(outfile, msg, strlen(msg)) <= 0)
-	 saved = False;
+	 saved = false;
+      if (write(outfile, msg, (unsigned int) strlen(msg)) <= 0)
+	 saved = false;
 
       close(outfile);
 
       // Ask user about retrying
       if (!saved)
 	 if (AreYouSure(hInst, hReadMailDlg, YES_BUTTON, IDS_SAVEFAILED))
-	    done = False;
+	    done = false;
    } while (!done);
 
    return saved;
@@ -275,9 +285,9 @@ int MailFindIndex(int number)
 /****************************************************************************/
 /*
  * MailDeleteMessage:  Delete the mail message with the given number.
- *   Return True on success.
+ *   Return true on success.
  */
-Bool MailDeleteMessage(int number)
+bool MailDeleteMessage(int number)
 {
    char filename[MAX_PATH + FILENAME_MAX];
    int index;
@@ -285,46 +295,46 @@ Bool MailDeleteMessage(int number)
    if ((index = MailFindIndex(number)) == -1)
    {
       debug(("Message number not found to delete\n"));
-      return False;
+      return false;
    }
 
    ListBox_GetText(hMsgList, index, filename);
    if (unlink(filename) != 0)
    {
       ClientError(hInst, hReadMailDlg, IDS_CANTDELETEMAIL, filename);
-      return False;
+      return false;
    }
 
    ListBox_DeleteString(hMsgList, index);
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * MailParseMessage:  Parse the message with the given number, and fill in reply
  *   with the data from the message header.
- *   Return True on success.
+ *   Return true on success.
  */
-Bool MailParseMessage(int msgnum, MailInfo *info)
+bool MailParseMessage(int msgnum, MailInfo *info)
 {
    FILE *infile;
    char filename[MAX_PATH + FILENAME_MAX];
    char line[MAX_LINE];
-   int num_fields = 5;  // Don't increase this without changing szLoadString (only 5 at a time)
-   int field_ids[] = {IDS_SUBJECT_ENGLISH, IDS_SUBJECT_GERMAN,
-                      IDS_FROM, IDS_TO, IDS_DATE};
-   char *fields[5], *ptr;
+   const int field_ids[] = {IDS_SUBJECT_ENGLISH, IDS_SUBJECT_GERMAN, IDS_SUBJECT_PORTUGUESE, IDS_FROM, IDS_TO, IDS_DATE};
+   const int num_fields = sizeof(field_ids) / sizeof(field_ids[0]);
+   auto fields = std::vector<std::string>(num_fields);
+   char *ptr;
    int i, index;
 
    if ((index = MailFindIndex(msgnum)) == -1)
    {
       debug(("Message number not found to delete\n"));
-      return False;
+      return false;
    }
 
    ListBox_GetText(hMsgList, index, filename);
 
    if ((infile = fopen(filename, "r")) == NULL)
-      return False;
+      return false;
 
    info->subject[0] = 0;
    info->sender[0] = 0;
@@ -343,12 +353,12 @@ Bool MailParseMessage(int msgnum, MailInfo *info)
       /* See if we've found a field.  If so, set ptr to just after field */
       for (i=0; i < num_fields; i++)
       {
-         if (!strncmp(line, fields[i], strlen(fields[i])))
+         if (!fields[i].empty() && !strncmp(line, fields[i].c_str(), strlen(fields[i].c_str())))
          {
             /* Remove newline at end of line */
             line[strlen(line) - 1] = 0;
             
-            ptr = line + strlen(fields[i]);
+            ptr = line + fields[i].size();
             break;
          }
       }
@@ -360,6 +370,7 @@ Bool MailParseMessage(int msgnum, MailInfo *info)
       {
       case IDS_SUBJECT_ENGLISH:
       case IDS_SUBJECT_GERMAN:
+      case IDS_SUBJECT_PORTUGUESE:
          strncpy(info->subject, ptr, MAX_SUBJECT);
          info->subject[MAX_SUBJECT - 1] = 0;
          break;
@@ -393,26 +404,26 @@ Bool MailParseMessage(int msgnum, MailInfo *info)
    }
    fclose(infile);
    
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * MailParseMessageHeader:  Fill header with a string describing the mail message
  *   in the given file.
- *   Return True on success.
+ *   Return true on success.
  */
-Bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header)
+bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header)
 {
    FILE *infile;
-   int num_fields = 5;  // Don't increase this without changing szLoadString (only 5 at a time)
-   int field_ids[] = {IDS_SUBJECT_ENGLISH, IDS_SUBJECT_GERMAN,
-                      IDS_FROM, IDS_TO, IDS_DATE};
-   int i;
-   char *fields[5], *ptr;
+   int field_ids[] = {IDS_SUBJECT_ENGLISH, IDS_SUBJECT_GERMAN, IDS_SUBJECT_PORTUGUESE, IDS_FROM, IDS_TO, IDS_DATE};
+   const int num_fields = sizeof(field_ids) / sizeof(field_ids[0]);
+   auto fields = std::vector<std::string>(num_fields);
+   char *ptr;
    char line[MAX_LINE];
-
+   int i;
+   
    if ((infile = fopen(filename, "r")) == NULL)
-      return False;
+      return false;
    
    memset(header, 0, sizeof(MailHeader));
    
@@ -428,12 +439,12 @@ Bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header)
       /* See if we've found a field.  If so, set ptr to just after field */
       for (i=0; i < num_fields; i++)
       {
-         if (!strnicmp(line, fields[i], strlen(fields[i])))
+         if (!fields[i].empty() && !strnicmp(line, fields[i].c_str(), fields[i].size()))
          {
             /* Remove newline at end of line */
             line[strlen(line) - 1] = 0;
             
-            ptr = line + strlen(fields[i]);
+            ptr = line + fields[i].size();
             break;
          }
       }
@@ -445,6 +456,7 @@ Bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header)
       {
       case IDS_SUBJECT_ENGLISH:
       case IDS_SUBJECT_GERMAN:
+      case IDS_SUBJECT_PORTUGUESE:
          strncpy(header->subject, ptr, MAX_SUBJECT);
          break;
          
@@ -460,5 +472,5 @@ Bool MailParseMessageHeader(int msgnum, char *filename, MailHeader *header)
    
    fclose(infile);
 
-   return True;
+   return true;
 }

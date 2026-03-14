@@ -3,13 +3,15 @@
 TOPDIR=..
 !include $(TOPDIR)\common.mak
 
-MODULES = admin char mailnews merintr intro dm chess
+MODULES = admin char mailnews merintr dm chess
 
-all:
-	-@for %i in ($(MODULES)) do @if EXIST %i (cd %i & $(MAKE) /$(MAKEFLAGS) & cd ..)
-
-release:
-	-@for %i in ($(MODULES)) do @if EXIST %i (cd %i & $(MAKE) /$(MAKEFLAGS) RELEASE=1 & cd ..)
+all: $(MODULES)
 
 clean:
-	-@for %i in ($(MODULES)) do @if EXIST %i (cd %i & $(MAKE) /$(MAKEFLAGS) clean & cd ..)
+    @$(MAKE) -$(MAKEFLAGS) $(MODULES) TARGET=$@
+
+# This structure correctly propagates any failure from a subbuild to the top level
+$(MODULES): FORCE
+    @if exist $@\ cd $@ && $(MAKE) -$(MAKEFLAGS) $(TARGET)
+
+FORCE:

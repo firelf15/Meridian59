@@ -28,25 +28,29 @@ DWORD	gFogCaps = (D3DPRASTERCAPS_FOGTABLE |
 
 D3DPRESENT_PARAMETERS	gPresentParam;
 
-Bool D3DDriverProfileInit(void)
+extern int gFullTextureSize;
+extern int gSmallTextureSize;
+extern int d3dRenderTextureThreshold;
+
+bool D3DDriverProfileInit(void)
 {
 	FILE					*pFile;
-	Bool					bProblem = FALSE;
-	Bool					bDisable = FALSE;
-	char					string[255];
+	bool					bProblem = false;
+	bool					bDisable = false;
+	char					config_setting[255];
 
 	pFile = fopen("d3dlog.txt", "w+t");
 	assert(pFile);
 
-	gD3DEnabled = FALSE;
+	gD3DEnabled = false;
 
 	// first check to make sure user isn't forcing software rendering
-	GetPrivateProfileString("config", "softwarerenderer", "error", string, 255, "./config.ini");
-	strlwr(string);
+	GetPrivateProfileString("config", "softwarerenderer", "error", config_setting, 255, "./config.ini");
+	strlwr(config_setting);
 
-	if (0 == strcmp(string, "true"))
+	if (0 == strcmp(config_setting, "true"))
 	{
-		gD3DDriverProfile.bSoftwareRenderer = TRUE;
+		gD3DDriverProfile.bSoftwareRenderer = true;
 
 		return FALSE;
 	}
@@ -63,38 +67,71 @@ Bool D3DDriverProfileInit(void)
 			NULL, MB_OK);
 		fclose(pFile);
 
-		gD3DDriverProfile.bSoftwareRenderer = TRUE;
+		gD3DDriverProfile.bSoftwareRenderer = true;
 
 		return FALSE;
 	}
 
-   // This looks wrong.. "TRUE" stencil format??
-	error = IDirect3D9_CheckDepthStencilMatch(
-      gpD3D, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
-      D3DFMT_X8R8G8B8, D3DFMT_D24S8, (D3DFORMAT) TRUE);
 
-	if (config.large_area)
+	// Main game view buffer resolution.
+	if (config.gpuEfficiency)
 	{
+		// original: 800 x 600 (4:3) 
 		gScreenWidth = 800;
 		gScreenHeight = 600;
 	}
-	else
+	else   
 	{
-		gScreenWidth = 512;
-		gScreenHeight = 384;
+		// 1080p: 1920 x 1080 (16:9)
+		gScreenWidth = 1920;
+		gScreenHeight = 1080;
 	}
+
+	// Full texture size is the same as the game resolution width.
+	gFullTextureSize = gScreenWidth;
+
+	// Small texture size is a quarter of the full texture size.
+	gSmallTextureSize = gFullTextureSize / 4;
+
+	d3dRenderTextureThreshold = gSmallTextureSize;
 
 	memset(&gPresentParam, 0, sizeof(gPresentParam));
 	gPresentParam.Windowed = TRUE;
 	gPresentParam.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	gPresentParam.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+	gPresentParam.PresentationInterval = (config.gpuEfficiency) ? D3DPRESENT_INTERVAL_DEFAULT : D3DPRESENT_INTERVAL_IMMEDIATE;
 	gPresentParam.BackBufferWidth = gScreenWidth;
 	gPresentParam.BackBufferHeight = gScreenHeight;
 	gPresentParam.BackBufferFormat = D3DFMT_A8R8G8B8;
 	gPresentParam.BackBufferCount = 1;
 	gPresentParam.EnableAutoDepthStencil = TRUE;
 	gPresentParam.AutoDepthStencilFormat = D3DFMT_D24S8;
-	gPresentParam.Flags |= D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+	gPresentParam.Flags = gPresentParam.Flags & ~D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+
+	// default to no multisampling
+	gPresentParam.MultiSampleType = D3DMULTISAMPLE_NONE;
+	gPresentParam.MultiSampleQuality = 0;
+
+	// Push the quality up even higher with multisampling
+	if (!config.gpuEfficiency)
+	{
+		// Test for multisample support
+		HRESULT hr;
+		DWORD maxQualityLevels = 0;
+
+		hr = IDirect3D9_CheckDeviceMultiSampleType(
+			gpD3D,
+			D3DADAPTER_DEFAULT,
+			D3DDEVTYPE_HAL,
+			gPresentParam.BackBufferFormat,
+			gPresentParam.Windowed,
+			D3DMULTISAMPLE_16_SAMPLES,
+			&maxQualityLevels);
+
+		if (SUCCEEDED(hr)) {
+			gPresentParam.MultiSampleType = D3DMULTISAMPLE_16_SAMPLES;
+			gPresentParam.MultiSampleQuality = maxQualityLevels - 1;
+		}
+	}
 
 	// first try hardware vertex processing
 	error = IDirect3D9_CreateDevice(gpD3D, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
@@ -346,10 +383,10 @@ Bool D3DDriverProfileInit(void)
 //	if (1)
 	{
 //		gD3DDriverProfile.texMemTotal = (32 * 1024 * 1024);
-		gD3DDriverProfile.bManagedTextures = TRUE;
+		gD3DDriverProfile.bManagedTextures = true;
 	}
 	else
-		gD3DDriverProfile.bManagedTextures = FALSE;
+		gD3DDriverProfile.bManagedTextures = false;
 
 //	gD3DDriverProfile.texMemTotal = (32 * 1024 * 1024);
 	gD3DDriverProfile.texMemTotal /= 4;

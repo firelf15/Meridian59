@@ -11,21 +11,53 @@
 
 #include "client.h"
 #include "mailnews.h"
+#include <unordered_map>
+#include <time.h>
+#include <locale>
+#include <iomanip>
+#include <sstream>
 
 extern HWND hReadMailDlg; /* Non-NULL if Read Mail dialog is up */
 extern HWND hSendMailDlg; /* Non-NULL if Send Mail dialog is up */
 
-static RECT  dlg_rect;        // Screen position of dialog
+static RECT dlg_rect; // Screen position of dialog
+
+// Constants for mail dialog columns
+typedef enum
+{
+   COL_ORDER = 0,
+   COL_FROM = 1,
+   COL_SUBJECT = 2,
+   COL_TIME = 3
+} MailColumns;
+
+// Constants used to track sorted column
+static int currentSortColumn = -1;
+static bool currentSortAscending = true;
+
+// Retrieve the user's locale for 
+static const char *localeName = setlocale(LC_ALL, "");
+
+// Hashtable to store converted mail timestamps
+static std::unordered_map<int, time_t> mail_date_map;
 
 static ChildPlacement mailread_controls[] = {
-{ IDC_MAILLIST,  RDI_TOP | RDI_LEFT | RDI_RIGHT },
-{ IDC_MAILEDIT,  RDI_ALL },
-{ 0,             0 },   // Must end this way
+    {IDC_MAILLIST, RDI_TOP | RDI_LEFT | RDI_RIGHT},
+    {IDC_MAILEDIT, RDI_ALL},
+    {0, 0}, // Must end this way
 };
 
 /* local function prototypes */
-static BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
-static void UserMailReply(int msg_num, Bool reply_all);
+static INT_PTR CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static void UserMailReply(int msg_num, bool reply_all);
+static void OnColumnClick(LPNMLISTVIEW pLVInfo);
+static int CALLBACK CompareMailListItems(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
+static int StringToTimestamp(const char *dateStr);
+static void PrepareMailDateMap(HWND hListView);
+static void ResetMailListSort(HWND hListView);
+static int DeleteSelectedMessages(HWND hList);
+static void UpdateButtonStates(HWND hDlg, HWND hList);
+
 /****************************************************************************/
 /*
  * UserReadMail:  Tell the server that the user wants to read mail.
@@ -36,26 +68,25 @@ void UserReadMail(void)
    if (hReadMailDlg == NULL)
    {
       // Don't ask for new mail; might need to wait for user list
-      if (CreateDialog(hInst, MAKEINTRESOURCE(IDD_MAILREAD), NULL, ReadMailDialogProc) == NULL)
-	 debug(("CreateDialog failed for read mail dialog\n"));
+      if (SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_MAILREAD), NULL, ReadMailDialogProc, 0) == NULL)
+         debug(("CreateDialog failed for read mail dialog\n"));
    }
    else
    {
       ShowWindow(hReadMailDlg, SW_SHOWNORMAL);
       SetFocus(hReadMailDlg);
-      
+
       // Ask server for new mail
       RequestReadMail();
    }
-
 }
 /****************************************************************************/
-BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    static HWND hEdit, hList;
-   static int mail_index;  /* Number of currently displayed message, -1 if none */
+   static int mail_index; /* Number of currently displayed message, -1 if none */
    MailHeader *header;
-   int index, msg_num, count;
+   int index, msg_num, lastIndex, count;
    char str[MAX_HEADERLINE], msg[MAXMAIL];
    MINMAXINFO *lpmmi;
    LV_COLUMN lvcol;
@@ -82,47 +113,57 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       // Add column headings
       lvcol.mask = LVCF_TEXT | LVCF_WIDTH;
       lvcol.pszText = GetString(hInst, IDS_MHEADER1);
-      lvcol.cx      = 25;
+      lvcol.cx = 25;
       ListView_InsertColumn(hList, 0, &lvcol);
       lvcol.pszText = GetString(hInst, IDS_MHEADER2);
-      lvcol.cx      = 80;
+      lvcol.cx = 80;
       ListView_InsertColumn(hList, 1, &lvcol);
       lvcol.pszText = GetString(hInst, IDS_MHEADER3);
-      lvcol.cx      = 150;
+      lvcol.cx = 150;
       ListView_InsertColumn(hList, 2, &lvcol);
       lvcol.pszText = GetString(hInst, IDS_MHEADER4);
-      lvcol.cx      = 135;
+      lvcol.cx = 135;
       ListView_InsertColumn(hList, 3, &lvcol);
 
       mail_index = -1;
+
+      EnableWindow(GetDlgItem(hDlg, IDC_REPLY), FALSE);
+      EnableWindow(GetDlgItem(hDlg, IDC_REPLYALL), FALSE);
+      EnableWindow(GetDlgItem(hDlg, IDC_DELETEMSG), FALSE);
 
       SetFocus(hReadMailDlg);
 
       MailGetMessageList();
       RequestReadMail();
+
+      PrepareMailDateMap(hList);
+      ListView_SetHeaderSortImage(hList, COL_ORDER, FALSE);
+
+
       return TRUE;
 
    case WM_SIZE:
       ResizeDialog(hDlg, &dlg_rect, mailread_controls);
-      return TRUE;      
+      return TRUE;
 
    case WM_GETMINMAXINFO:
-      lpmmi = (MINMAXINFO *) lParam;
+      lpmmi = (MINMAXINFO *)lParam;
       lpmmi->ptMinTrackSize.x = 200;
       lpmmi->ptMinTrackSize.y = 300;
       return 0;
 
    case WM_ACTIVATE:
       if (wParam == 0)
-	 *cinfo->hCurrentDlg = NULL;
-      else *cinfo->hCurrentDlg = hDlg;
+         *cinfo->hCurrentDlg = NULL;
+      else
+         *cinfo->hCurrentDlg = hDlg;
       return TRUE;
-      
+
    case BK_SETDLGFONTS:
       SetWindowFont(hEdit, GetFont(FONT_MAIL), TRUE);
       SetWindowFont(hList, GetFont(FONT_MAIL), TRUE);
       return TRUE;
-      
+
    case BK_SETDLGCOLORS:
       ListView_SetTextColor(hList, GetColor(COLOR_LISTFGD));
       ListView_SetBkColor(hList, GetColor(COLOR_LISTBGD));
@@ -133,10 +174,10 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       /* By default, whole message becomes selected for some reason */
       Edit_SetSel(hEdit, -1, 0);
       break;
-      
+
    case BK_NEWMAIL: /* wParam = message number, lParam = message header string */
       msg_num = wParam;
-      header = (MailHeader *) lParam;
+      header = (MailHeader *)lParam;
 
       // Add message to list view
       if (!IsNameInIgnoreList(header->sender))
@@ -165,7 +206,7 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       // Erase message in status area
       SetDlgItemText(hDlg, IDC_MAILINFO, "");
       return TRUE;
-   
+
    case BK_NONEWMAIL:
       SetDlgItemText(hDlg, IDC_MAILINFO, GetString(hInst, IDS_NONEWMAIL));
       return TRUE;
@@ -176,7 +217,7 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       HANDLE_MSG(hDlg, WM_CTLCOLORDLG, MailCtlColor);
 
       HANDLE_MSG(hDlg, WM_INITMENUPOPUP, InitMenuPopupHandler);
-      
+
    case WM_CLOSE:
       SendMessage(hDlg, WM_COMMAND, IDCANCEL, 0);
       return TRUE;
@@ -184,105 +225,119 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
    case WM_DESTROY:
       hReadMailDlg = NULL;
       if (exiting)
-	 PostMessage(cinfo->hMain, BK_MODULEUNLOAD, 0, MODULE_ID);
+         PostMessage(cinfo->hMain, BK_MODULEUNLOAD, 0, MODULE_ID);
       return TRUE;
 
    case WM_NOTIFY:
-      if (wParam != IDC_MAILLIST)
-	 return TRUE;
+      if ((((LPNMHDR)lParam)->idFrom == IDC_MAILLIST) &&
+          (((LPNMHDR)lParam)->code == LVN_COLUMNCLICK))
+         OnColumnClick((LPNMLISTVIEW)lParam);
 
-      nm = (NM_LISTVIEW *) lParam;
+      if (wParam != IDC_MAILLIST)
+         return TRUE;
+
+      nm = (NM_LISTVIEW *)lParam;
 
       switch (nm->hdr.code)
       {
       case NM_CLICK:
-	 // If you click on an item, select it--why doesn't control work this way by default?
-	 GetCursorPos(&lvhit.pt);
-	 ScreenToClient(hList, &lvhit.pt);
-	 lvhit.pt.x = 10;
-	 index = ListView_HitTest(hList, &lvhit);
+         // If you click on an item, select it--why doesn't control work this way by default?
+         GetCursorPos(&lvhit.pt);
+         ScreenToClient(hList, &lvhit.pt);
+         lvhit.pt.x = 10;
+         index = ListView_HitTest(hList, &lvhit);
 
-	 if (index == -1)
-	    break;
+         if (index == -1)
+            break;
 
-	 ListView_SetItemState(hList, index, 
-			       LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-	 break;
+         ListView_SetItemState(hList, index,
+                               LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+         break;
 
       case LVN_ITEMCHANGED:
-	 // New item selected; get its message number
-	 lvitem.mask = LVIF_STATE | LVIF_PARAM;
-	 lvitem.stateMask = LVIS_SELECTED;
-	 lvitem.iItem = nm->iItem;
-	 lvitem.iSubItem = 0;
-	 ListView_GetItem(hList, &lvitem);
+         UpdateButtonStates(hDlg, hList);
 
-	 if (!(lvitem.state & LVIS_SELECTED))
-	    break;
+         // New item selected; get its message number
+         lvitem.mask = LVIF_STATE | LVIF_PARAM;
+         lvitem.stateMask = LVIS_SELECTED;
+         lvitem.iItem = nm->iItem;
+         lvitem.iSubItem = 0;
+         ListView_GetItem(hList, &lvitem);
 
-	 msg_num = lvitem.lParam;
-	 if (msg_num == mail_index)
-	    break;
-	 
-	 if (MailLoadMessage(msg_num, MAXMAIL, msg) == False)
-	 {
-	    ClientError(hInst, hReadMailDlg, IDS_CANTLOADMSG);
-	    break;
-	 }
+         if (!(lvitem.state & LVIS_SELECTED))
+            break;
 
-	 mail_index = msg_num;
-	 Edit_SetText(hEdit, msg);
-	 break;
+         msg_num = lvitem.lParam;
+         if (msg_num == mail_index)
+            break;
+
+         if (MailLoadMessage(msg_num, MAXMAIL, msg) == false)
+         {
+            ClientError(hInst, hReadMailDlg, IDS_CANTLOADMSG);
+            break;
+         }
+
+         mail_index = msg_num;
+         Edit_SetText(hEdit, msg);
+         break;
       }
       return TRUE;
 
    case WM_COMMAND:
       UserDidSomething();
 
-      switch(GET_WM_COMMAND_ID(wParam, lParam))
+      switch (GET_WM_COMMAND_ID(wParam, lParam))
       {
       case IDC_DELETEMSG:
-	 if (!ListViewGetCurrentData(hList, &index, &msg_num))
-	    return TRUE;
-	 
-	 if (MailDeleteMessage(msg_num) == True)
-	 {
-	    /* Display new current message, if any */
-	    Edit_SetText(hEdit, "");
-	    ListView_DeleteItem(hList, index);
+         // Confirm if deleting multiple messages
+         count = ListView_GetSelectedCount(hList);
+         if (count > 1) {
+            if (!AreYouSure(hInst, hReadMailDlg, NO_BUTTON, IDS_DELETEMULTIPLE, count))
+               return TRUE;
+         }
 
-	    count = ListView_GetItemCount(hList);
-	    if (count == 0)
-	       return TRUE;
+         lastIndex = DeleteSelectedMessages(hList);
+         Edit_SetText(hEdit, "");
 
-	    index = min(index, count - 1);  // in case last message deleted
-	    ListView_SetItemState(hList, index, LVIS_SELECTED, LVIS_SELECTED);
-	 }
-	 return TRUE;
+         // Get new count of messages after deletion
+         count = ListView_GetItemCount(hList);
+
+         // If there are still messages, select the nearest message
+         if (count > 0) {
+            // If lastIndex is valid, use it as reference point
+            // Otherwise start from beginning           
+            int index = (lastIndex >= 0) ? std::min(lastIndex, count - 1) : 0;
+            ListView_SetItemState(hList, index, LVIS_SELECTED, LVIS_SELECTED);
+         }
+
+         return TRUE;
 
       case IDC_RESCAN:
-	 SetDlgItemText(hDlg, IDC_MAILINFO, GetString(hInst, IDS_GETTINGMSGS));
-	 RequestReadMail();
-	 return TRUE;
+         SetDlgItemText(hDlg, IDC_MAILINFO, GetString(hInst, IDS_GETTINGMSGS));
+         RequestReadMail();
+         ResetMailListSort(hList);
+         PrepareMailDateMap(hList);
+         return TRUE;
 
       case IDC_SEND:
-	 UserSendMail();
-	 return TRUE;
+         UserSendMail();
+         return TRUE;
 
       case IDC_REPLY:
       case IDC_REPLYALL:
-	 /* Find message number for currently selected message */
-	 if (!ListViewGetCurrentData(hList, &index, &msg_num))
-	    return TRUE;
+         /* Find message number for currently selected message */
+         if (!ListViewGetCurrentData(hList, &index, &msg_num))
+            return TRUE;
 
-	 UserMailReply(msg_num, (Bool) (GET_WM_COMMAND_ID(wParam, lParam) == IDC_REPLYALL));
-	 return TRUE;
+         UserMailReply(msg_num, (GET_WM_COMMAND_ID(wParam, lParam) == IDC_REPLYALL));
+         return TRUE;
 
       case IDCANCEL:
-	 /* Note:  This code is also used by the WM_CLOSE message */
-	 MailDeleteMessageList();
-	 DestroyWindow(hDlg);
-	 return TRUE;
+         /* Note:  This code is also used by the WM_CLOSE message */
+         MailDeleteMessageList();
+         DestroyWindow(hDlg);
+         mail_date_map.clear();
+         return TRUE;
       }
       break;
    }
@@ -290,11 +345,11 @@ BOOL CALLBACK ReadMailDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
 }
 /****************************************************************************/
 /*
- * ListViewGetCurrentData:  Set index to index of currently selected item 
+ * ListViewGetCurrentData:  Set index to index of currently selected item
  *   in given list view control, and data to its lParam value.
- * Return True if a selected item is found, False otherwise.
+ * Return true if a selected item is found, false otherwise.
  */
-Bool ListViewGetCurrentData(HWND hList, int *index, int *data)
+bool ListViewGetCurrentData(HWND hList, int *index, int *data)
 {
    int i, num;
    LV_ITEM lvitem;
@@ -304,30 +359,30 @@ Bool ListViewGetCurrentData(HWND hList, int *index, int *data)
    lvitem.mask = LVIF_STATE | LVIF_PARAM;
    lvitem.iSubItem = 0;
    lvitem.stateMask = LVIS_SELECTED;
-   for (i=0; i < num; i++)
+   for (i = 0; i < num; i++)
    {
       lvitem.iItem = i;
       ListView_GetItem(hList, &lvitem);
-      
+
       if (lvitem.state & LVIS_SELECTED)
       {
-	 *index = i;
-	 *data = lvitem.lParam;
-	 return True;
+         *index = i;
+         *data = lvitem.lParam;
+         return true;
       }
    }
-   return False;
+   return false;
 }
 /****************************************************************************/
 /*
- * UserMailReply:  Set up a reply to the given message.  If reply_all is True, reply to
+ * UserMailReply:  Set up a reply to the given message.  If reply_all is true, reply to
  *   all recipients of given message number; otherwise reply just to sender.
  */
-void UserMailReply(int msg_num, Bool reply_all)
+void UserMailReply(int msg_num, bool reply_all)
 {
    MailInfo *reply;
 
-   reply = (MailInfo *) SafeMalloc(sizeof(MailInfo));  // Freed when reply dialog ends
+   reply = (MailInfo *)SafeMalloc(sizeof(MailInfo)); // Freed when reply dialog ends
 
    MailParseMessage(msg_num, reply);
 
@@ -335,10 +390,10 @@ void UserMailReply(int msg_num, Bool reply_all)
    {
       if (reply->num_recipients >= MAX_RECIPIENTS)
       {
-	 // If user wants to go ahead anyway, just truncate recipients
-	 if (!AreYouSure(hInst, hReadMailDlg, NO_BUTTON, IDS_TOOMANYRECIPIENTS, MAX_RECIPIENTS))
-	    return;
-	 reply->num_recipients--;  // Add sender below
+         // If user wants to go ahead anyway, just truncate recipients
+         if (!AreYouSure(hInst, hReadMailDlg, NO_BUTTON, IDS_TOOMANYRECIPIENTS, MAX_RECIPIENTS))
+            return;
+         reply->num_recipients--; // Add sender below
       }
 
       strcpy(reply->recipients[reply->num_recipients], reply->sender);
@@ -352,4 +407,187 @@ void UserMailReply(int msg_num, Bool reply_all)
 
    MakeReplySubject(reply->subject, MAX_SUBJECT);
    MailSendReply(hReadMailDlg, reply);
+}
+
+void OnColumnClick(LPNMLISTVIEW pLVInfo)
+{
+   int nSortColumn = pLVInfo->iSubItem;
+   bool bSortAscending = true;
+
+   if (nSortColumn == currentSortColumn)
+   {
+      // Toggle sort direction if the same column is clicked again
+      currentSortAscending = !currentSortAscending;
+   }
+   else
+   {
+      // Set ascending order for new column
+      currentSortColumn = nSortColumn;
+      currentSortAscending = true;
+   }
+
+   LPARAM lParamSort = (currentSortAscending ? 1 : -1) * (currentSortColumn + 1);
+
+   if (hbmUpArrow != NULL && hbmDownArrow != NULL)
+   {
+      ListView_SetHeaderSortImage(pLVInfo->hdr.hwndFrom, currentSortColumn, currentSortAscending);
+   }
+
+   // Sort list
+   ListView_SortItemsEx(pLVInfo->hdr.hwndFrom, CompareMailListItems, lParamSort);
+}
+
+/****************************************************************************/
+/*
+ * CompareMailListItems: Comparison function for sorting items in the dialog
+ * list view.
+ */
+int CALLBACK CompareMailListItems(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
+{
+   bool bSortAscending = (lParamSort > 0);
+   int nColumn = abs(lParamSort) - 1;
+   char szBuf1[MAX_SUBJECT], szBuf2[MAX_SUBJECT];
+   int time1 = 0;
+   int time2 = 0;
+
+   HWND hListView = GetDlgItem(hReadMailDlg, IDC_MAILLIST);
+
+   // Extract the msg_num values from the list view items
+   ListView_GetItemText(hListView, lParam1, COL_ORDER, szBuf1, sizeof(szBuf1));
+   ListView_GetItemText(hListView, lParam2, COL_ORDER, szBuf2, sizeof(szBuf2));
+   int msg_num1 = atoi(szBuf1);
+   int msg_num2 = atoi(szBuf2);
+
+   ListView_GetItemText(hListView, lParam1, nColumn, szBuf1, sizeof(szBuf1));
+   ListView_GetItemText(hListView, lParam2, nColumn, szBuf2, sizeof(szBuf2));
+
+   switch (nColumn)
+   {
+   case COL_ORDER:
+      return bSortAscending ? atoi(szBuf1) - atoi(szBuf2) : atoi(szBuf2) - atoi(szBuf1);
+   case COL_FROM:
+      return bSortAscending ? stricmp(szBuf1, szBuf2) : stricmp(szBuf2, szBuf1);
+   case COL_SUBJECT:
+      return bSortAscending ? stricmp(szBuf1, szBuf2) : stricmp(szBuf2, szBuf1);
+   case COL_TIME:
+      time1 = mail_date_map[msg_num1];
+      time2 = mail_date_map[msg_num2];
+
+      return bSortAscending ? (time1 - time2) : (time2 - time1);
+   default:
+      debug(("Unhandled column (column #%d) in CompareMailListItems\n", nColumn));
+      return 0;
+   }
+}
+
+/***************************************************************************/
+/*
+ * StringToTimestamp converts mail date strings to integers for comparison
+ */
+/***************************************************************************/
+int StringToTimestamp(const char *dateStr)
+{
+   struct tm tm = {0};
+   tm.tm_isdst = -1; // Handle daylight saving time
+
+   // Use a string stream to parse the date and time, leveraging locale
+   // to support the translation of month strings.
+   std::istringstream input(dateStr);
+
+   try
+   {
+      input.imbue(std::locale(localeName));
+   }
+   catch (const std::runtime_error &e)
+   {
+      debug(("Failed to set locale: %s. Falling back to default.\n", e.what()));
+      input.imbue(std::locale("C"));
+   }
+   
+   input >> std::get_time(&tm, "%a %b %d, %Y %H:%M");
+
+   if (input.fail())
+   {
+      debug(("Failed to parse date string: %s\n", dateStr));
+      return 0;
+   }
+
+   time_t timestamp = mktime(&tm);
+
+   // Return timestamp as an int
+   return timestamp;
+}
+
+/***************************************************************************/
+/*
+ * PrepareMailDateMap caches converted mail date string versions for sorting
+ */
+/***************************************************************************/
+void PrepareMailDateMap(HWND hListView)
+{
+   mail_date_map.clear();
+   int itemCount = ListView_GetItemCount(hListView);
+   char szBuf[MAX_SUBJECT];
+   char orderBuf[30];
+
+   for (int i = 0; i < itemCount; ++i)
+   {
+      // Retrieve the value from the first column (COL_ORDER)
+      ListView_GetItemText(hListView, i, COL_ORDER, orderBuf, sizeof(orderBuf));
+      int msg_num = atoi(orderBuf);
+
+      // Retrieve the time string from the time column (COL_TIME)
+      ListView_GetItemText(hListView, i, COL_TIME, szBuf, sizeof(szBuf));
+      int timestamp = StringToTimestamp(szBuf);
+
+      // Store the timestamp in the hash table
+      mail_date_map[msg_num] = timestamp;
+   }
+}
+
+/***************************************************************************/
+/*
+ * ResetMailListSort Resets the list sort order and sort indicator image
+ */
+/***************************************************************************/
+void ResetMailListSort(HWND hListView)
+{
+   // 1-based column
+   ListView_SortItemsEx(hListView, CompareMailListItems, -(COL_ORDER + 1));
+   // 0-based column
+   ListView_SetHeaderSortImage(hListView, COL_ORDER, false);
+}
+
+/*
+* DeleteSelectedMessages: Deletes all selected messages from the list view
+*/
+int DeleteSelectedMessages(HWND hList) {
+   int i;
+   int count = ListView_GetItemCount(hList);
+   int lastSelectedIndex = -1;
+   
+   for (i = count - 1; i >= 0; i--) {
+      if (ListView_GetItemState(hList, i, LVIS_SELECTED)) {
+         LV_ITEM lvitem;
+         lvitem.mask = LVIF_PARAM;
+         lvitem.iItem = i;
+         lvitem.iSubItem = 0;
+         ListView_GetItem(hList, &lvitem);
+         
+         if (MailDeleteMessage((int)lvitem.lParam)) {
+            ListView_DeleteItem(hList, i);
+            lastSelectedIndex = i;
+         }
+      }
+   }
+   
+   // Return the index where the last selected item
+   return lastSelectedIndex;
+}
+
+static void UpdateButtonStates(HWND hDlg, HWND hList) {
+   int selectedCount = ListView_GetSelectedCount(hList);
+   EnableWindow(GetDlgItem(hDlg, IDC_REPLY), selectedCount == 1);
+   EnableWindow(GetDlgItem(hDlg, IDC_REPLYALL), selectedCount == 1);
+   EnableWindow(GetDlgItem(hDlg, IDC_DELETEMSG), selectedCount > 0);
 }

@@ -10,19 +10,36 @@
  */
 
 #include "client.h"
+#include <sstream>
+
+using namespace std;
 
 #define MAXSERVERNUM 3      /* Max # of digits in server number */
 
 static int user_type;       /* Tells if user is administrator, guest, etc.. */
-Bool logged_in;             /* True iff we're past login dialog */
+bool logged_in;             /* true iff we're past login dialog */
 extern int connection;
-Bool admin_mode;            // True when user wants to go into admin mode
+bool admin_mode;            // true when user wants to go into admin mode
 
-static BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+static INT_PTR CALLBACK LoginDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 static HWND GetMessageBoxParent(void);
 static void LoginReset(void);
 
 SystemInfo sysinfo;
+
+/****************************************************************************/
+/*
+* UseRetailLoginSystem:  Determine if the retail web api's should be utilized.
+*   Return true iff "retail", official build, is in use (not for the open source version).
+*/
+bool UseRetailLoginSystem()
+{
+#ifdef M59_RETAIL
+    return true;
+#else
+    return false;
+#endif
+}
 
 /****************************************************************************/
 /*  
@@ -67,7 +84,7 @@ void LoginSendInfo(void)
  */
 void LoginOk(BYTE type)
 {
-   logged_in = True;
+   logged_in = true;
    user_type = type;
 }
 /****************************************************************************/
@@ -88,7 +105,7 @@ HWND GetMessageBoxParent(void)
 /*
  * LoginErrorMessage:  Bring up an error message box with given login error message.
  */
-void LoginErrorMessage(char *message, BYTE action)
+void LoginErrorMessage(const char *message, BYTE action)
 {
    HWND hParent = GetMessageBoxParent();
    config.quickstart = FALSE;
@@ -112,10 +129,61 @@ void LoginErrorMessage(char *message, BYTE action)
 void LoginError(int err_string)
 {
    HWND hParent = GetMessageBoxParent();
+   if (UseRetailLoginSystem() && err_string == IDS_TOOMANYLOGINS)
+   {
+       CheckAccountActivation();    
+   }
    ClientError(hInst, hParent, err_string);
    config.quickstart = FALSE;
    LoginReset();
 }
+
+void CheckAccountActivation(void)
+{
+    HWND hParent = GetMessageBoxParent();
+
+    // make web api request.
+    char domain[256];
+    LoadString(hInst, IDS_WEBAPIDOMAIN, domain, sizeof(domain));
+    char resource[256];
+    LoadString(hInst, IDS_VERIFIEDAPI, resource, sizeof(resource));
+    wstring response;
+
+    // Build http post body with user input values.
+    stringstream ss;
+    ss << "submit=1";
+    ss << "&username=" << config.username;
+    ss << "&server=" << config.comm.server_num;
+
+    if (SendHttpsRequest(hParent, domain, resource, ss.str(), response))
+    {
+        string dStr(response.begin(), response.end());
+        char* text = const_cast<char *>(dStr.c_str());
+        debug((text));
+
+        char* pEnd = nullptr;
+        long webResponse = strtol(text, &pEnd, 10);
+
+        if (pEnd)
+        {
+            // successfully parsed web api response, check for unverified account.
+            switch (webResponse)
+            {
+            case AccountStatusWebResponse::VERIFY:
+            {
+                if (AreYouSure(hInst, hMain, YES_BUTTON, IDS_UNVERIFIED))
+                {
+                    // request re-send of verification email.
+                    LoadString(hInst, IDS_RESENDAPI, resource, sizeof(resource));
+                    SendHttpsRequest(hParent, domain, resource, ss.str(), response);
+                }
+            }
+            break;
+            }
+        }
+    }
+}
+
 /****************************************************************************/
 /*
  * LoginReset:  We've gotten an error from the server in LOGIN state;
@@ -156,50 +224,37 @@ void EnterGame(void)
    encodednum = (((MAJOR_REV * 100) + MINOR_REV) * P_CATCH) + P_CATCH;
    RequestGame(config.download_time,encodednum,inihost);
 }
-/****************************************************************************/
-
-
 
 /****************************************************************************/
 /*
  * GetLogin:  Bring up dialog asking user to fill in login information.
- *   Return True iff user presses OK button.
+ *   Return true iff user presses OK button.
  */
-Bool GetLogin(void)
+bool GetLogin(void)
 {
-   admin_mode = False;
-   // Have guests log in automatically
-   if (config.guest)
-      return GuestGetLogin();
-   else if (config.quickstart)
+   admin_mode = false;
+   if (config.quickstart)
    {
-      logged_in = False;
+      logged_in = false;
    }
    else
    {
-      logged_in = False;
+      logged_in = false;
       if (DialogBox(hInst, MAKEINTRESOURCE(IDD_LOGIN), hMain, LoginDialogProc) == IDCANCEL)
-	 return False;
+	 return false;
       // Go into admin mode if control key is held down
       admin_mode = (GetKeyState(VK_CONTROL) < 0);
-
-      // See if "guest" typed as account name
-      if (!stricmp(config.username, GetString(hInst, IDS_GUEST)))
-      {
-	 config.guest = True;
-	 return GuestGetLogin();
-      }
    }
       
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * LoginDialogProc:  Get login information.
  */
-BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK LoginDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-   static HWND hUser, hPasswd, hServer;        /* Edit boxes in dialog */
+   static HWND hUser, hPasswd;        /* Edit boxes in dialog */
    static HWND hGroupBox, hTryPreviewButton;
    int value;
    BOOL success;
@@ -210,46 +265,33 @@ BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
       CenterWindow(hDlg, GetParent(hDlg));
       hUser = GetDlgItem(hDlg, IDC_USERNAME);
       hPasswd = GetDlgItem(hDlg, IDC_PASSWORD);
-      hServer = GetDlgItem(hDlg, IDC_SERVERNUM);
       hGroupBox = GetDlgItem(hDlg, IDC_NEW_TO_MERIDIAN_59);
 
       Edit_LimitText(hUser, MAXUSERNAME);
       Edit_LimitText(hPasswd, MAXPASSWORD);
-      Edit_LimitText(hServer, MAXSERVERNUM);
 
       SetWindowFont(hUser, GetFont(FONT_INPUT), FALSE);
       SetWindowFont(hPasswd, GetFont(FONT_INPUT), FALSE);
-      SetWindowFont(hServer, GetFont(FONT_INPUT), FALSE);
 
       // Set server number, if it's valid
+      if (config.comm.server_num == 101) {
+        CheckDlgButton(hDlg, IDC_SERVER_101, TRUE);
+      } else if (config.comm.server_num == 102) {
+        CheckDlgButton(hDlg, IDC_SERVER_102, TRUE);
+      }
       if (config.comm.server_num != -1)
       {
-         SetDlgItemInt(hDlg, IDC_SERVERNUM, config.comm.server_num, FALSE);
-	 
-	 // If already logged in, can't change server number
-	 if (connection != CON_NONE)
-	    EnableWindow(hServer, FALSE);
+        // If already logged in, can't change server number
+        if (connection != CON_NONE) {
+          EnableWindow(GetDlgItem(hDlg, IDC_SERVER_101), FALSE);
+          EnableWindow(GetDlgItem(hDlg, IDC_SERVER_102), FALSE);
+        }
       }
 
       /* If we have a default name, go to password edit box */
       Edit_SetText(hUser, config.username);
       Edit_SetSel(hUser, 0, -1);
-      if (config.guest)
-      {
-	 RECT rc;
-	 int bottom;
-	 Edit_SetText(hUser, "GUEST");
-	 Edit_SetText(hPasswd, "GUEST");
-	 EnableWindow(hUser, FALSE);
-	 EnableWindow(hPasswd, FALSE);
-	 EnableWindow(hServer, FALSE);	 
-	 EnableWindow(GetDlgItem(hDlg,IDC_OK), FALSE);
-	 GetWindowRect(hGroupBox, &rc);
-	 bottom = rc.bottom + 5;
-	 GetWindowRect(hDlg, &rc);
-	 MoveWindow(hDlg, rc.left, rc.top, rc.right - rc.left, bottom - rc.top, TRUE);
-      }
-      else if (strlen(config.username) > 0)
+      if (strlen(config.username) > 0)
       {
 	 Edit_SetText(hPasswd, config.password);
 	 Edit_SetSel(hPasswd, 0, -1);
@@ -265,34 +307,31 @@ BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
    case WM_COMMAND:
       switch(GET_WM_COMMAND_ID(wParam, lParam))
       {
-      case IDC_GUEST:
-	 strcpy(config.username, "GUEST");
-	 strcpy(config.password, "GUEST");
-	 ConfigSetServerNameByNumber(config.server_guest);
-	 ConfigSetSocketPortByNumber(config.server_guest);
-	 config.comm.server_num = config.server_guest;
-	 EndDialog(hDlg, IDOK);
-	 return TRUE;
-
-      case IDC_HOMEPAGE:
-	 {
-	    char url[256];
-	    LoadString(hInst,IDS_HOMEPAGEURL,url,sizeof(url));
-	    if (*url)
-	    {
-	       WebLaunchBrowser(url);
-	       EndDialog(hDlg, IDCANCEL);
-	       PostMessage(hMain,WM_SYSCOMMAND,SC_CLOSE,0);
-	    }
-	 }
-	 return TRUE;
-
-      case IDOK:
+      case IDC_SIGNUP:
+      {
+          /* Sign up for an account */
+          if (UseRetailLoginSystem())
+          {
+              /* via HTTPs web api for "retail" (official builds) */
+              Signup::GetInstance()->GetSignUp();
+          }
+          else
+          {
+              /* via (classic) HTTP browser web page sign up (open source) */
+              char homepageUrl[256];
+              LoadString(hInst, IDS_HOMEPAGEURL, homepageUrl, sizeof(homepageUrl));
+              WebLaunchBrowser(homepageUrl);
+              EndDialog(hDlg, IDCANCEL);
+              PostMessage(hMain, WM_SYSCOMMAND, SC_CLOSE, 0);
+          }
+      }
+     return TRUE;
+     case IDOK:
 	 /* User has pressed return on one of the edit boxes */
 	 if (GetFocus() == hUser)
 	 {
 	    SetFocus(hPasswd);
-	    return True;
+	    return true;
 	 }
 	 
 	 if (GetFocus() == hPasswd)
@@ -302,12 +341,13 @@ BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 	    
 	    if (success)
 	       PostMessage(hDlg, WM_COMMAND, IDC_OK, 0);
-	    else SetFocus(hServer);
-	    return True;	    
+	    else SetFocus(GetDlgItem(hDlg, IDC_SERVER_101));
+	    return true;	    
 	 }
 
-	 if (GetFocus() == hServer)
-	    PostMessage(hDlg, WM_COMMAND, IDC_OK, 0);
+	 if (GetFocus() == GetDlgItem(hDlg, IDC_SERVER_101) ||
+       GetFocus() == GetDlgItem(hDlg, IDC_SERVER_102))
+     PostMessage(hDlg, WM_COMMAND, IDC_OK, 0);
 	 return TRUE;
 
       case IDC_OK:
@@ -315,18 +355,7 @@ BOOL CALLBACK LoginDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 	 Edit_GetText(hUser, config.username, MAXUSERNAME + 1);
 	 Edit_GetText(hPasswd, config.password, MAXPASSWORD + 1);
 
-	 value = GetDlgItemInt(hDlg, IDC_SERVERNUM, &success, FALSE);
-	 if (!success)
-	 {
-	    // If logging in as "guest", no server number required
-	    if (!stricmp(config.username, GetString(hInst, IDS_GUEST)))
-	       value = config.server_guest;
-	    else
-	    {
-	       ClientError(hInst, hDlg, IDS_NOSERVERNUM);
-	       return TRUE;
-	    }
-	 }
+   value = (IsDlgButtonChecked(hDlg, IDC_SERVER_102)) ? 102 : 101;
 	 
 	 // If value changed, set server name and socketport
 	 if (value != config.comm.server_num)

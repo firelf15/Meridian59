@@ -33,13 +33,14 @@ static char fontinfo[][MAX_FONTNAME] = {
 { "24,0,0,0,700,0,0,0,0,0,0,0,0,Arial" },          /* FONT_MAP_TITLE */
 { "12,0,0,0,400,0,0,0,0,0,0,0,0,Arial" },           /* FONT_MAP_LABEL */
 { "12,0,0,0,400,0,0,0,0,0,0,0,0,Arial" },           /* FONT_MAP_TEXT */
+{ "-13,0,0,0,700,0,0,0,0,3,2,5,0,Arial" },          /* FONT_MAP_ANNOTATIONS */
 };
 
 static char font_section[] = "Fonts";  /* Section for fonts in INI file */
 
 /* local function prototypes */
-UINT CALLBACK ChooseFontHookProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-Bool SetFont(WORD font, LOGFONT *lf);
+UINT_PTR CALLBACK ChooseFontHookProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+bool SetFont(WORD font, LOGFONT *lf);
 void DestroyFont(WORD font);
 HFONT GetFont(WORD font);
 
@@ -48,75 +49,20 @@ LOGFONT *GetLogfont(int fontNum)
    return &logfonts[fontNum];
 }
 
-Bool GetLogFont(WORD fontnum, LOGFONT *pLogFont)
-{
-   char str[MAX_FONTNAME], name[10], *ptr;
-   char *separators = ",";
-   int temp;
-   LOGFONT lf;
-   Bool success;
-
-   sprintf(name, "Font%d", fontnum);
-   GetPrivateProfileString(font_section, name, fontinfo[fontnum], str, MAX_FONTNAME, ini_file);
-
-   success = True;
-   if ((ptr = strtok(str, separators)) == NULL || sscanf(ptr, "%d", &lf.lfHeight) != 1)
-      success = False;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfWidth) != 1)
-      success = False;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfEscapement) != 1)
-      success = False;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfOrientation) != 1)
-      success = False;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfWeight) != 1)
-      success = False;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfItalic = temp; /* 1 byte value */
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfUnderline = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfStrikeOut = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfCharSet = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfOutPrecision = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfClipPrecision = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfQuality = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-      success = False;
-   else lf.lfPitchAndFamily = temp;
-   if ((ptr = strtok(NULL, separators)) == NULL)	 
-      success = False; 
-   else strcpy(lf.lfFaceName, ptr);
-   
-   if (success)
-      memcpy(pLogFont,&lf,sizeof(LOGFONT));
-   return success;
-}
-
 /************************************************************************/
 /*
  * FontsCreate:  Create all fonts for use in the game.
- *  If use_defaults is False, try to load fonts from INI file.
+ *  If use_defaults is false, try to load fonts from INI file.
  *  Otherwise use default fonts.
  */
-void FontsCreate(Bool use_defaults)
+void FontsCreate(bool use_defaults)
 {
    WORD i;
    int temp;
    LOGFONT lf;
    char str[MAX_FONTNAME], name[10], *ptr;
-   char *separators = ",";
-   Bool success;
+   const char *separators = ",";
+   bool success;
 
    hDefaultFont = (HFONT) GetStockObject(SYSTEM_FONT);
 
@@ -127,47 +73,47 @@ void FontsCreate(Bool use_defaults)
 	 strcpy(str, fontinfo[i]);
       else
       {
-	 sprintf(name, "Font%d", i);
+        snprintf(name, sizeof(name), "Font%d", i);
 	 GetPrivateProfileString(font_section, name, fontinfo[i], str, MAX_FONTNAME, ini_file);
       }
 
-      success = True;
+      success = true;
       if ((ptr = strtok(str, separators)) == NULL || sscanf(ptr, "%d", &lf.lfHeight) != 1)
-	 success = False;
+	 success = false;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfWidth) != 1)
-	 success = False;
+	 success = false;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfEscapement) != 1)
-	 success = False;
+	 success = false;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfOrientation) != 1)
-	 success = False;
+	 success = false;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &lf.lfWeight) != 1)
-	 success = False;
+	 success = false;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfItalic = temp; /* 1 byte value */
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfUnderline = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfStrikeOut = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfCharSet = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfOutPrecision = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfClipPrecision = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfQuality = temp;
       if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-	 success = False;
+	 success = false;
       else lf.lfPitchAndFamily = temp;
       if ((ptr = strtok(NULL, separators)) == NULL)	 
-	 success = False; 
+	 success = false; 
       else strcpy(lf.lfFaceName, ptr);
 
       memcpy(&logfonts[i],&lf,sizeof(LOGFONT));
@@ -209,23 +155,23 @@ HFONT GetFont(WORD font)
 /************************************************************************/
 /*
  * SetFont:  Set given user font # using given font info.  
- *   Returns True on success; returns False and uses default font on failure.
+ *   Returns true on success; returns false and uses default font on failure.
  */
-Bool SetFont(WORD font, LOGFONT *lf)
+bool SetFont(WORD font, LOGFONT *lf)
 {
    if (font > MAXFONTS)
    {
       debug(("Illegal font #%u\n", font));
-      return False;
+      return false;
    }
 
    fonts[font] = CreateFontIndirect(lf);
    if (fonts[font] == NULL)
    {
       fonts[font] = hDefaultFont;
-      return False;
+      return false;
    }
-   return True;
+   return true;
 }
 /************************************************************************/
 /* 
@@ -243,12 +189,12 @@ void FontsSave(void)
       if (GetObject(fonts[i], sizeof(LOGFONT), &lf) == 0)
 	 GetObject(hDefaultFont, sizeof(LOGFONT), &lf);
       
-      sprintf(str, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s", 
+      snprintf(str, sizeof(str), "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s", 
 	      lf.lfHeight, lf.lfWidth, lf.lfEscapement, lf.lfOrientation,
 	      lf.lfWeight, lf.lfItalic, lf.lfUnderline, lf.lfStrikeOut,
 	      lf.lfCharSet, lf.lfOutPrecision, lf.lfClipPrecision,
 	      lf.lfQuality, lf.lfPitchAndFamily, lf.lfFaceName);
-      sprintf(name, "Font%d", i);
+      snprintf(name, sizeof(name), "Font%d", i);
 
       WritePrivateProfileString(font_section, name, str, ini_file);
    }
@@ -257,10 +203,18 @@ void FontsSave(void)
 void FontsRestoreDefaults(void)
 {
    FontsDestroy();
-   FontsCreate(True);
+   FontsCreate(true);
    MainChangeFont();
 
    ModuleEvent(EVENT_FONTCHANGED, -1, NULL);
+}
+/************************************************************************/
+HFONT FontsGetScaledFont(HFONT hFont, float scale)
+{
+  LOGFONT lf;
+  GetObject(hFont, sizeof(LOGFONT), &lf);
+  lf.lfHeight *= scale;
+  return CreateFontIndirect(&lf);
 }
 
 
@@ -300,7 +254,7 @@ void UserSelectFont(WORD font)
    SetFont(font, cf.lpLogFont);
 
    /* See if a module wants to intercept font change */
-   if (ModuleEvent(EVENT_FONTCHANGED, font, cf.lpLogFont) == False)
+   if (ModuleEvent(EVENT_FONTCHANGED, font, cf.lpLogFont) == false)
       return;
 
    /* Update fonts on screen */
@@ -311,7 +265,7 @@ void UserSelectFont(WORD font)
  * ChooseFontHookProc:  Intercept window messages of Choose Font common
  *   dialog.
  */
-UINT CALLBACK ChooseFontHookProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+UINT_PTR CALLBACK ChooseFontHookProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -340,5 +294,5 @@ int GetFontHeight(HFONT hFont)
    SelectObject(hdc, hOldFont);
    ReleaseDC(hMain, hdc);
    
-   return max(tm.tmHeight, 1);  // In case of divide by zero
+   return std::max((int)tm.tmHeight, 1);  // In case of divide by zero
 }

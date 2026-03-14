@@ -34,8 +34,8 @@ classvars:
    vrIcon = RiijaSword_icon_rsc
    vrDesc = RiijaSword_desc_rsc
 
-   viHits_init_min = 600
-   viHits_init_max = 650
+   viHits_init_min = 700
+   viHits_init_max = 750
 
    % Riija Swords are high quality thrusting weapons
    viWeaponType = WEAPON_TYPE_THRUST
@@ -74,16 +74,28 @@ messages:
       propagate;	 
    }
 
-   AppendDesc()
+   DoBaseDesc()
    {
+      local lData;
+
+      if Send(self,@HasAttribute,#ItemAtt=IA_NEW_DESCRIPTION)
+      {
+         lData = Send(self,@GetAttributeData,#ItemAtt=IA_NEW_DESCRIPTION);
+         AppendTempString(Nth(lData,2));
+      }
+      else
+      {
+         AppendTempString(vrDesc);
+      }
+
       if poQuester <> $
       {
-         AppendTempString(RiijaSword_desc_append1) ;
-         AppendTempString(send(poQuester,@GetTrueName));
+         AppendTempString(RiijaSword_desc_append1);
+         AppendTempString(Send(poQuester,@GetTrueName));
          AppendTempString(RiijaSword_desc_append2);
       }
-      
-      propagate;
+
+      return;
    }
    
    GetQuester()

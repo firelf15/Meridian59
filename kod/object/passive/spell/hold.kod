@@ -71,7 +71,7 @@ messages:
 
    CanPayCosts(who = $, lTargets = $, bItemCast = FALSE)
    {
-      local target, i;
+      local target;
       
       % Can cast spell if the 1 target item is a user
       if Length(lTargets) <> 1
@@ -208,7 +208,7 @@ messages:
           bAllowFreeAction=TRUE)   
    "Holds target for durationsecs seconds."
    {
-      local i, oSpell, iTotalDuration;
+      local oSpell, iTotalDuration;
             
       if otarget = $
       {
@@ -221,7 +221,7 @@ messages:
          return FALSE;
       }
 
-      % Use iDuration (in ms).  If it is nil, then covert iDurationSecs to ms.
+      % Use iDuration (in ms).  If it is nil, then convert iDurationSecs to ms.
       if iDuration = $
       {
          if iDurationSecs = $

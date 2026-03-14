@@ -80,7 +80,7 @@ Init( template_index = 0, report = FALSE )
 CheckPlayerCriteria( quester_wannabe = $ )
 {
    local iPlayerRestrict, oCurrentNPC, oQuestEngine, oQuest, oQuester, iRestrict, iKarma, lHistory, iHistory, iSucceed, iFail,\
-      iRecentTime, iFaction, iPower, iTime, iR2, bDebug, oLich, i, bHasNegativeBoon;
+      iRecentTime, iFaction, iPower, iTime, iR2, bDebug, i, bHasNegativeBoon;
 
    oQuestEngine = send( SYS, @GetQuestEngine );
    iPlayerRestrict = send(oQuestEngine, @GetQuestPlayerRestrictions, #index = piQuestTemplateIndex );
@@ -411,7 +411,7 @@ CheckPlayerCriteria( quester_wannabe = $ )
          }
       }
       if first(iR2) = Q_R2_HAS_HEALTH_LEVEL {
-         if send(quester_wannabe,@GetMaxHealth) < nth(iR2, 2) {
+         if send(quester_wannabe,@GetBaseMaxHealth) < nth(iR2, 2) {
             if bDebug { debug("failed Q_R2_HAS_HEALTH_LEVEL."); }
             return FALSE;
          }
@@ -561,7 +561,7 @@ QuestHasMoreNodes()
 %%
 AssignNextNode( current_NPC = $ )
 {
-	local oSNPC, oDNPC, iNextQuestNodeTemplate, bDebug;
+	local iNextQuestNodeTemplate, bDebug;
 
    bDebug = send(send( SYS, @GetQuestEngine ), @GetDebugStatus);
 
@@ -603,6 +603,19 @@ SetQuestNode( node_object = $ )
 {
 	poQuestNode = node_object;
 	return;
+}
+
+ExpireQuest(report = TRUE)
+{
+   if poQuestNode <> $
+   {
+      Send(poQuestNode,@DeadlineExpired,#report=report);
+   }
+   else
+   {
+      Debug("Quest node no longer exists");
+   }
+   return;
 }
 
 % returns FALSE if time expired (and cancels quest), TRUE if time left

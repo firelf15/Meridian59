@@ -23,14 +23,14 @@
 #define MAX_SAVE_CONTROL_LINE 200
 
 /* local function prototypes */
-Bool LoadAllButAccountAtTime(char *time_str);
-Bool LoadControlFile(int *last_save_time);
+bool LoadAllButAccountAtTime(char *time_str);
+bool LoadControlFile(int *last_save_time);
 
 /* LoadAll
 Can't do this if any sessions are logged in because sessions have
 pointers to accounts
 */
-Bool LoadAll(void)
+bool LoadAll(void)
 {
 	char load_name[MAX_PATH+FILENAME_MAX];
 	char time_str[100];
@@ -40,64 +40,62 @@ Bool LoadAll(void)
 	/* ban all the naughty children */
 	BuildBannedIPBlocks("banned.txt");
 
-	if (LoadControlFile(&last_save_time) == False)
+	if (LoadControlFile(&last_save_time) == false)
 	{
 		lprintf("LoadAll initializing a new game\n");
 		SetSystemObjectID(CreateObject(SYSTEM_CLASS,0,NULL));
 		CreateBuiltIn();
-		return False;
+		return false;
 	}
 	
-	sprintf(time_str,"%i",last_save_time);
+	snprintf(time_str, sizeof(time_str), "%i",last_save_time);
 	
-	sprintf(load_name,"%s%s%s",ConfigStr(PATH_LOADSAVE),ACCOUNT_FILE_SAVE,time_str);
-	if (LoadAccounts(load_name) == False)
+	snprintf(load_name, sizeof(load_name), "%s%s%s",ConfigStr(PATH_LOADSAVE),ACCOUNT_FILE_SAVE,time_str);
+	if (LoadAccounts(load_name) == false)
 	{
 		lprintf("LoadAll error loading accounts, initializing a new game\n");
 		SetSystemObjectID(CreateObject(SYSTEM_CLASS,0,NULL));
 		CreateBuiltIn();
-		return False;
+		return false;
 	}
 	
-	if (LoadAllButAccountAtTime(time_str) == False)
-		return False;
+	if (LoadAllButAccountAtTime(time_str) == false)
+		return false;
 	
-	/* can't use TimeStr() in an xprintf because it uses TimeStr() too */
-	strcpy(time_str,TimeStr(last_save_time));
-	lprintf("LoadAll loaded game saved at %s\n",time_str);
+	lprintf("LoadAll loaded game saved at %s\n", TimeStr(last_save_time).c_str());
 	
-	return True;
+	return true;
 }
 
-Bool LoadAllButAccount(void)
+bool LoadAllButAccount(void)
 {
 	char time_str[100];
 	int last_save_time;
 	
-	if (LoadControlFile(&last_save_time) == False)
+	if (LoadControlFile(&last_save_time) == false)
 	{
 		/* couldn't load anything in, so system is dead */
 		SetSystemObjectID(CreateObject(SYSTEM_CLASS,0,NULL));
-		return False;
+		return false;
 	}
 	
-	sprintf(time_str,"%i",last_save_time);
+	snprintf(time_str, sizeof(time_str), "%i",last_save_time);
 	
 	return LoadAllButAccountAtTime(time_str);
 }
 
-Bool LoadAllButAccountAtTime(char *time_str)
+bool LoadAllButAccountAtTime(char *time_str)
 {
-	Bool load_ok;
+	bool load_ok;
 	char load_name[MAX_PATH+FILENAME_MAX];
 	
-	load_ok = True;
+	load_ok = true;
 	
-	sprintf(load_name,"%s%s%s",ConfigStr(PATH_LOADSAVE),STRING_FILE_SAVE,time_str);
-	if (LoadBlakodStrings(load_name) == False)
-		load_ok = False;
+	snprintf(load_name, sizeof(load_name), "%s%s%s",ConfigStr(PATH_LOADSAVE),STRING_FILE_SAVE,time_str);
+	if (LoadBlakodStrings(load_name) == false)
+		load_ok = false;
 	
-	sprintf(load_name,"%s%s%s",ConfigStr(PATH_LOADSAVE),GAME_FILE_SAVE,time_str);
+	snprintf(load_name, sizeof(load_name), "%s%s%s",ConfigStr(PATH_LOADSAVE),GAME_FILE_SAVE,time_str);
 	if (!LoadGame(load_name)) 
 	{
 	/* If loadgame failed, create a system object which basically starts
@@ -111,34 +109,34 @@ Bool LoadAllButAccountAtTime(char *time_str)
 		SetSystemObjectID(CreateObject(SYSTEM_CLASS,0,NULL));
 	}
 	
-	sprintf(load_name,"%s%s%s",ConfigStr(PATH_LOADSAVE),DYNAMIC_RSC_FILE_SAVE,time_str);
+	snprintf(load_name, sizeof(load_name), "%s%s%s",ConfigStr(PATH_LOADSAVE),DYNAMIC_RSC_FILE_SAVE,time_str);
 	LoadDynamicRsc(load_name);
 	
 	return load_ok;
 }
 
-Bool LoadControlFile(int *last_save_time)
+bool LoadControlFile(int *last_save_time)
 {
 	FILE *loadfile;
 	char line[MAX_SAVE_CONTROL_LINE+1];
 	char *t1,*t2;
 	char load_name[MAX_PATH+FILENAME_MAX];
 	int lineno;
-	Bool found_lastsave;
+	bool found_lastsave;
 	
-	sprintf(load_name,"%s%s",ConfigStr(PATH_LOADSAVE),SAVE_CONTROL_FILE);
+	snprintf(load_name, sizeof(load_name), "%s%s",ConfigStr(PATH_LOADSAVE),SAVE_CONTROL_FILE);
 	if ((loadfile = fopen(load_name,"rt")) == NULL)
-		return False;
+		return false;
 	
-	found_lastsave = False;
+	found_lastsave = false;
 	
 	lineno = 0;
 	while (fgets(line,MAX_SAVE_CONTROL_LINE,loadfile))
 	{
 		lineno++;
-		
-		t1 = strtok(line," \n");
-		t2 = strtok(NULL," \n");
+
+		t1 = strtok(line," \r\n");
+		t2 = strtok(NULL," \r\n");
 		
 		if (t1 == NULL)	/* ignore blank lines */
 			continue;
@@ -149,14 +147,14 @@ Bool LoadControlFile(int *last_save_time)
 		if (stricmp(t1,"LASTSAVE") == 0)
 			if (sscanf(t2,"%i",last_save_time) == 1)
 			{
-				found_lastsave = True;
+				found_lastsave = true;
 				continue;
 			}
 			
 			eprintf("LoadControl file invalid data line %s (%i)\n",
-				load_name,lineno);
+					load_name,lineno);
 			fclose(loadfile);
-			return False;
+			return false;
 			
 	}
 	

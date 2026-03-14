@@ -28,7 +28,7 @@ static char buf0[LEN_MAX_CLIENT_MSG+1];
 void FreeTable(table_node *tn);
 hash_node * AllocateTableEntry(val_type key_val,val_type data_val);
 
-Bool EqualTableEntry(val_type s1_val,val_type s2_val);
+bool EqualTableEntry(val_type s1_val,val_type s2_val);
 unsigned int GetTableHash(val_type val);
 
 
@@ -209,8 +209,8 @@ void InsertTable(int table_id,val_type key_val,val_type data_val)
 
    index = GetTableHash(key_val) % tn->size;
 
-   if (ConfigBool(DEBUG_HASH) == True)
-      dprintf("Insert tbl %i, index %i, key %i,%i\n",table_id,index,key_val.v.tag,key_val.v.data);
+   if (ConfigBool(DEBUG_HASH) == true)
+     dprintf("Insert tbl %i, index %i, key %s\n",table_id,index,fmt(key_val));
    
    /* insert in front of list */
    hn = AllocateTableEntry(key_val,data_val);
@@ -218,7 +218,7 @@ void InsertTable(int table_id,val_type key_val,val_type data_val)
    tn->table[index] = hn;
 }
 
-int GetTableEntry(int table_id,val_type key_val)
+blak_int GetTableEntry(int table_id,val_type key_val)
 {
    table_node *tn;
    hash_node *hn;
@@ -237,7 +237,7 @@ int GetTableEntry(int table_id,val_type key_val)
    while (hn != NULL)
    {
       if (EqualTableEntry(hn->key_val,key_val))
-	 return hn->data_val.int_val;
+        return hn->data_val.int_val;
       hn = hn->next;
    }
    return NIL;
@@ -260,8 +260,8 @@ void DeleteTableEntry(int table_id,val_type key_val)
 
    if (tn->table[index] == NULL)
    {
-      dprintf("DeleteTableEntry can't delete %i,%i from table %i\n",key_val.v.tag,
-	      key_val.v.data,table_id);
+      dprintf("DeleteTableEntry can't delete %s from table %i\n",
+              fmt(key_val),table_id);
       return;
    }
 
@@ -286,14 +286,13 @@ void DeleteTableEntry(int table_id,val_type key_val)
       }
       hn = hn->next;
    }
-   dprintf("DeleteTableEntry can't delete %i,%i from table %i\n",key_val.v.tag,
-	   key_val.v.data,table_id);
+   dprintf("DeleteTableEntry can't delete %s from table %i\n",fmt(key_val),table_id);
 }
 
-Bool EqualTableEntry(val_type s1_val,val_type s2_val)
+bool EqualTableEntry(val_type s1_val,val_type s2_val)
 {
    char *s1,*s2;
-   int len1,len2;
+   size_t len1,len2;
 
    
    resource_node *r;
@@ -306,10 +305,9 @@ Bool EqualTableEntry(val_type s1_val,val_type s2_val)
       r = GetResourceByID(s1_val.v.data);
       if (r == NULL)
       {
-	 bprintf("EqualTableEntry can't find resource %i,%i\n",
-		 s1_val.v.tag,s1_val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
-	 return False;
+        bprintf("EqualTableEntry can't find resource %s\n", fmt(s1_val));
+        eprintf("%s\n",BlakodStackInfo().c_str());
+        return false;
       }
       s1 = r->resource_val;
       len1 = strlen(r->resource_val);
@@ -319,10 +317,9 @@ Bool EqualTableEntry(val_type s1_val,val_type s2_val)
       snod = GetStringByID(s1_val.v.data);
       if (snod == NULL)
       {
-	 bprintf("EqualTableEntry can't find string %i,%i\n",
-		 s1_val.v.tag,s1_val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
-	 return False;
+        bprintf("EqualTableEntry can't find string %s\n", fmt(s1_val));
+        eprintf("%s\n",BlakodStackInfo().c_str());
+        return false;
       }
       s1 = snod->data;
       len1 = snod->len_data;
@@ -342,10 +339,9 @@ Bool EqualTableEntry(val_type s1_val,val_type s2_val)
       r = GetResourceByID(s2_val.v.data);
       if (r == NULL)
       {
-	 bprintf("EqualTableEntry can't find resource %i,%i\n",
-		 s2_val.v.tag,s2_val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
-	 return False;
+        bprintf("EqualTableEntry can't find resource %s\n", fmt(s2_val));
+        eprintf("%s\n",BlakodStackInfo().c_str());
+        return false;
       }
       s2 = r->resource_val;
       len2 = strlen(r->resource_val);
@@ -355,10 +351,9 @@ Bool EqualTableEntry(val_type s1_val,val_type s2_val)
       snod = GetStringByID(s2_val.v.data);
       if (snod == NULL)
       {
-	 bprintf("EqualTableEntry can't find string %i,%i\n",
-		 s2_val.v.tag,s2_val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
-	 return False;
+        bprintf("EqualTableEntry can't find string %s\n", fmt(s2_val));
+        eprintf("%s\n",BlakodStackInfo().c_str());
+        return false;
       }
       s2 = snod->data;
       len2 = snod->len_data;
@@ -378,13 +373,13 @@ Bool EqualTableEntry(val_type s1_val,val_type s2_val)
    /* mismatch */
    if (s1 == NULL || s2 == NULL)
    {
-      eprintf("EqualTableEntry can't match %i,%i with %i,%i\n",
-	      s1_val.v.tag,s1_val.v.data,s2_val.v.tag,s2_val.v.data);
-		eprintf("%s\n",BlakodStackInfo());
-      return False;
+      eprintf("EqualTableEntry can't match %s with %s\n",
+              fmt(s1_val),fmt(s2_val));
+      eprintf("%s\n",BlakodStackInfo().c_str());
+      return false;
    }
 
-   return FuzzyBufferEqual(s1,len1,s2,len2);
+   return FuzzyBufferEqual(s1, (int) len1, s2, (int) len2);
 }
 
 unsigned int GetTableHash(val_type val)
@@ -400,20 +395,20 @@ unsigned int GetTableHash(val_type val)
       r = GetResourceByID(val.v.data);
       if (r == NULL)
       {
-	 bprintf("GetTableHash can't find resource %i\n",val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
+	 bprintf("GetTableHash can't find resource %" PRId64 "\n",val.v.data);
+	 eprintf("%s\n",BlakodStackInfo().c_str());
 	 return 0;
       }
       s = r->resource_val;
-      len = strlen(r->resource_val);
+      len = (int) strlen(r->resource_val);
       break;
 
    case TAG_STRING :
       snod = GetStringByID(val.v.data);
       if (snod == NULL)
       {
-	 bprintf("GetTableHash can't find string %i\n",val.v.data);
-	 eprintf("%s\n",BlakodStackInfo());
+	 bprintf("GetTableHash can't find string %" PRId64 "\n",val.v.data);
+	 eprintf("%s\n",BlakodStackInfo().c_str());
 	 return 0;
       }
       s = snod->data;
@@ -432,7 +427,7 @@ unsigned int GetTableHash(val_type val)
       break;
 
    default:
-      return GetBufferHash((char *)&val.int_val,4);
+     return GetBufferHash((char *)&val.int_val,sizeof(val.int_val));
    }
 
    if (!s || len <= 0)
@@ -440,10 +435,10 @@ unsigned int GetTableHash(val_type val)
 
    FuzzyCollapseString(buf0,s,len);
 
-   return GetBufferHash(buf0,strlen(buf0));
+   return GetBufferHash(buf0, strlen(buf0));
 }
 
-unsigned int GetBufferHash(const char *buf,unsigned int len_buf)
+unsigned int GetBufferHash(const char *buf, size_t len_buf)
 {
    unsigned int g,h,i;
 
@@ -453,7 +448,7 @@ unsigned int GetBufferHash(const char *buf,unsigned int len_buf)
    for (i=0;i<len_buf;i++)
    {
       h = (h << 4) + (unsigned char)(toupper(buf[i]));
-      if (g = h & 0xF0000000)
+      if ((g = h & 0xF0000000))
 	 h ^= g >> 24;
       h &= ~g;
    }

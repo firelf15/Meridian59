@@ -35,7 +35,7 @@ static int timeout;      /* # of milliseconds that have passed so far */
 
 static int dest_state;   /* State we should go to when resync succeeds */
 
-void CALLBACK StartupTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime);
+void CALLBACK StartupTimerProc(HWND hwnd, UINT msg, UINT_PTR timer, DWORD dwTime);
 
 /****************************************************************************/
 /* 
@@ -60,7 +60,7 @@ void StartupInit(int final_state)
    }
 }
 /************************************************************************/
-void CALLBACK StartupTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime)
+void CALLBACK StartupTimerProc(HWND hwnd, UINT msg, UINT_PTR timer, DWORD dwTime)
 {
    /* See if we've timed out */
    timeout += BEACON_INTERVAL;
@@ -82,7 +82,7 @@ void CALLBACK StartupTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime)
 void AddCharsStartup(char *message, int len)
 {
    int i;
-   Bool done = False;
+   bool done = false;
 
    for (i=0; i < len; i++)
    {
@@ -97,7 +97,7 @@ void AddCharsStartup(char *message, int len)
       /* If we reach end of server string, win */
       if (pos == INITSTR_LENGTH)
       {
-	 done = True;
+	 done = true;
 	 break;
       }
    }

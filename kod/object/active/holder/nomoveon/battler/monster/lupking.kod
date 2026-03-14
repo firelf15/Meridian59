@@ -139,8 +139,6 @@ messages:
 
    SomethingMoved(what=$)
    {
-      local oTrance, oActive, lActive, i;
-
       if what <> self OR poOwner = $
       {
          propagate;
@@ -407,10 +405,10 @@ messages:
    {
       local oHold, lActive, iRandom, iDistance, iBestDistance, i, each_obj;
 
-      % Only one in three people are considered eligable 
+      % Only one in three people are considered eligible 
       % targets.  The closest is targeted.  Held people
       % aren't considered - he deals with his current 
-      % target first.  Only people in veiw are considered.
+      % target first.  Only people in view are considered.
 
       oHold = Send(SYS,@FindSpellByNum,#num=SID_HOLD);
       lActive = Send(poOwner,@getholderactive);
@@ -444,7 +442,7 @@ messages:
 
    Killed(what=$)
    {
-      local oSpell, oRoom, NumAttackers, i;
+      local oSpell, NumAttackers, i;
 
       NumAttackers = length(plAttackers);
  
@@ -472,8 +470,11 @@ messages:
 
       }
    
+      % Environmental earthquake - room-based, flat damage, blamed on room.
+      % Using Post so earthquake fires after the lupogg king finishes dying.
       oSpell = Send(SYS,@FindSpellByNum,#num=SID_EARTHQUAKE);
-      post(oSpell,@DoEarthQuake,#where=poOwner,#severity=2);
+      Post(oSpell,@DoEarthQuake,#where=poOwner,#severity=2,
+           #rDeathSourceDef=Send(self,@GetDef),#rDeathSourceName=Send(self,@GetName));
 
       propagate;
    }

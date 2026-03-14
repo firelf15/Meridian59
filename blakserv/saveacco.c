@@ -22,37 +22,33 @@ FILE *accofile;
 /* local function prototypes */
 void SaveEachAccount(account_node *a);
 
-Bool SaveAccounts(char *filename)
+bool SaveAccounts(char *filename)
 {
    if ((accofile = fopen(filename,"wt")) == NULL)
    {
       eprintf("SaveAccounts can't open %s to save accounts!\n",filename);
-      return False;
+      return false;
    }
 
    ForEachAccount(SaveEachAccount);
    fprintf(accofile,"NEXT_ACCOUNT_ID %i\n",GetNextAccountID());
    fclose(accofile);
 
-   return True;
+   return true;
 }
 
 void SaveEachAccount(account_node *a)
 {
-   unsigned char *ptr;
-   
-   fprintf(accofile,"ACCOUNT %i:%s:",a->account_id,a->name);
+   fprintf(accofile,"ACCOUNT %i:%s:",a->account_id,a->name.c_str());
 
-   ptr = (unsigned char *) a->password;
-   while (*ptr != 0)
+   for (auto it : a->password)
    {
-      fprintf(accofile,"%02x",*ptr);
-      ptr++;
+     fprintf(accofile,"%02x", (unsigned char) it);
    }
 
-   if (a->password[0] == 0)
+   if (a->password.empty())
       fprintf(accofile,"None");
 
-   fprintf(accofile,":%i:%i:%i:%i\n",a->type,a->last_login_time,
-           a->credits,a->suspend_time);
+   fprintf(accofile,":%i:%lli:%i:%lli\n",a->type,(long long) a->last_login_time,
+           a->credits,(long long) a->suspend_time);
 }

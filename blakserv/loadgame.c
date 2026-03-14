@@ -62,11 +62,12 @@ ishash_type load_game_resources;
    if (fread(buf, 1, len, loadfile.file) != len) \
    { \
 	   eprintf("File %s Line %i not enough bytes to read\n",__FILE__,__LINE__); \
-      return False; \
+      return false; \
    } \
 } 
 
 #define LoadGameReadInt(buf) LoadGameRead(buf,4)
+#define LoadGameReadInt64(buf) LoadGameRead(buf,8)
 #define LoadGameReadChar(buf) LoadGameRead(buf,1)
 
 #define LoadGameReadString(buf,max_len) \
@@ -75,38 +76,38 @@ ishash_type load_game_resources;
    if (fread(&len, 1, 2, loadfile.file) != 2) \
    { \
       eprintf("File %s Line %i not enough bytes to read\n",__FILE__,__LINE__); \
-      return False; \
+      return false; \
    } \
 \
 	if (len > max_len-1) \
    { \
-      eprintf("File %s Line %i string too long (%i >= %i)\n",__FILE__,__LINE__,len,max_len); \
-      return False; \
+     eprintf("File %s Line %i string too long (%i >= %i)\n",__FILE__,__LINE__,len,(int) max_len); \
+      return false; \
    } \
 \
    if (fread(buf, 1, len, loadfile.file) != len) \
    { \
       eprintf("File %s Line %i not enough bytes to read\n",__FILE__,__LINE__); \
-      return False; \
+      return false; \
    } \
 	buf[len] = 0; \
 }
 
-
 /* local function prototypes */
 
-Bool LoadGameOpen(char *fname);
-Bool LoadGameParse(char *filename);
+bool LoadGameOpen(char *fname);
+bool LoadGameParse(char *filename);
 void LoadGameClose(void);
 
-Bool LoadGameSystem(void);
-Bool LoadGameObject(void);
-Bool LoadGameListNodes(void);
-Bool LoadGameTimer(void);
-Bool LoadGameUser(void);
-Bool LoadGameClass(void);
+bool LoadGameSystem(void);
+bool LoadGameObject(int file_version);
+bool LoadGameListNodes(int file_version);
+bool LoadGameTimer(int file_version);
+bool LoadGameUser(void);
+bool LoadGameClass(void);
 void LoadAddPropertyName(load_game_class_node *lgc,int prop_old_id,char *prop_name);
-Bool LoadGameResource(void);
+bool LoadGameResource(void);
+bool LoadGameReadInt32To64(val_type *prop_val);
 
 load_game_class_node * CreateLoadGameClass(int class_old_id,char *class_name,int num_props);
 void CreateLoadGameResource(int resource_old_id,char *resource_name);
@@ -117,9 +118,9 @@ const char * GetLoadGameResourceByID(int resource_old_id);
 
 void LoadGameTranslateVal(val_type *pval);
 
-Bool LoadGame(char *filename)
+bool LoadGame(char *filename)
 {
-	Bool ret_val;
+	bool ret_val;
 	load_game_class_node *lgc,*tempc;
 	int i,j;
 	UINT64 start_time;
@@ -138,11 +139,11 @@ Bool LoadGame(char *filename)
 	current_object_id = INVALID_OBJECT;
 	current_object_class_id = INVALID_OBJECT;
 	
-	if (LoadGameOpen(filename) == False)
+	if (LoadGameOpen(filename) == false)
 	{
 		eprintf("LoadGame can't open %s to load the game, using default!\n",
 			filename);
-		return False;
+		return false;
 	}
 	
 	ret_val = LoadGameParse(filename);
@@ -185,7 +186,7 @@ Bool LoadGame(char *filename)
 	return ret_val;
 }
 
-Bool LoadGameOpen(char *fname)
+bool LoadGameOpen(char *fname)
 {
    loadfile.file = fopen(fname, "rb");
 	return loadfile.file != NULL;
@@ -196,20 +197,37 @@ void LoadGameClose(void)
 	fclose(loadfile.file);
 }
 
-Bool LoadGameParse(char *filename)
+bool LoadGameParse(char *filename)
 {
 	char cmd;
-	
+
+  // File versions:
+  // 0 - original save game, everything is 32 bits
+  // 1 - object properties are 64 bits
+  int file_version = 0;
+
+  char sentinel;
+  LoadGameReadChar(&sentinel);
+  if (sentinel == 'V') {
+    LoadGameReadInt(&file_version);
+    if (file_version < 0 || file_version > 1) {
+      eprintf("LoadGameParse got unknown save game version %i\n", file_version);
+      return false;
+    }
+  } else {
+    rewind(loadfile.file);
+  }
+
 	while (true)
 	{
       if (fread(&cmd, 1, 1, loadfile.file) != 1)
       {
          if (feof(loadfile.file))
-            return True;
+            return true;
 
          eprintf("File %s Line %i couldn't read type\n",
                  __FILE__,__LINE__);
-         return False;
+         return false;
       }
 
       //      dprintf("load game %i\n",cmd);
@@ -217,53 +235,53 @@ Bool LoadGameParse(char *filename)
 		{
 		case SAVE_GAME_CLASS :
 			if (!LoadGameClass())
-				return False;
+				return false;
 			break;
 		case SAVE_GAME_RESOURCE :
 			if (!LoadGameResource())
-				return False;
+				return false;
 			break;
 		case SAVE_GAME_SYSTEM :
 			if (!LoadGameSystem())
-				return False;
+				return false;
 			break;
 		case SAVE_GAME_OBJECT :
-			if (!LoadGameObject())
-				return False;
+			if (!LoadGameObject(file_version))
+				return false;
 			break;
 		case SAVE_GAME_LIST_NODES :
-			if (!LoadGameListNodes())
-				return False;
+			if (!LoadGameListNodes(file_version))
+				return false;
 			break;
 		case SAVE_GAME_TIMER :
-			if (!LoadGameTimer())
-				return False;
+			if (!LoadGameTimer(file_version))
+				return false;
 			break;
 		case SAVE_GAME_USER :
 			if (!LoadGameUser())
-				return False;
+				return false;
 			break;
 		default :
-			eprintf("LoadGameFile found invalid command byte %u at offset %i in %s\n",
+			eprintf("LoadGameFile found invalid command byte %u at offset %li in %s\n",
                  cmd,ftell(loadfile.file),filename);
-			return False;
+			return false;
 		}
 	}
 	
-	return True;
+	return true;
 }
 
-Bool LoadGameSystem(void)
+bool LoadGameSystem(void)
 {
 	int system_id;
 	
 	LoadGameReadInt(&system_id);
 	SetSystemObjectID(system_id);
 	
-	return True;
+	return true;
 }
 
-Bool LoadGameObject(void)
+bool LoadGameObject(int file_version)
 {
 	int object_id,class_old_id,num_props,i;
 	val_type prop_val;
@@ -279,19 +297,25 @@ Bool LoadGameObject(void)
 	{
 		eprintf("LoadGameObject found object %i class id %i without class name\n",object_id,
 			class_old_id);
-		return False;
+		return false;
 	}
 
 	if (!LoadObject(object_id,lgc->class_name))
 	{
 		eprintf("LoadGameObject can't load object %i\n",object_id);
-		return False;
+		return false;
 	}
 	current_object_id = object_id;
 
 	for (i=1;i<=num_props;i++)
 	{
-		LoadGameReadInt(&prop_val);
+    if (file_version == 0) {
+      if (!LoadGameReadInt32To64(&prop_val)) {
+         return false;
+      }
+    } else {
+      LoadGameReadInt64(&prop_val);
+    }
 		// eprintf("loading object %i\n",object_id);
 
 		LoadGameTranslateVal(&prop_val);
@@ -300,7 +324,7 @@ Bool LoadGameObject(void)
 		{
 			eprintf("LoadGameObject found object %i class %s property %i without name\n",
 				object_id,lgc->class_name,i);
-			return False;
+			return false;
 		}
 
 		if (!SetObjectPropertyByName(current_object_id,property_str,prop_val))
@@ -312,10 +336,10 @@ Bool LoadGameObject(void)
 
 	}
 	
-	return True;
+	return true;
 }
 
-Bool LoadGameListNodes(void)
+bool LoadGameListNodes(int file_version)
 {
 	int num_list_nodes,i;
 	val_type first_val,rest_val;
@@ -324,8 +348,15 @@ Bool LoadGameListNodes(void)
 	
 	for (i=0;i<num_list_nodes;i++)
 	{
-		LoadGameReadInt(&first_val.int_val);
-		LoadGameReadInt(&rest_val.int_val);
+		if (file_version == 0) {
+		  if (!LoadGameReadInt32To64(&first_val) ||
+		      !LoadGameReadInt32To64(&rest_val)) {
+		    return false;
+		  }
+		} else {
+		  LoadGameReadInt64(&first_val);
+		  LoadGameReadInt64(&rest_val);
+		}
 		
 		LoadGameTranslateVal(&first_val);
 		LoadGameTranslateVal(&rest_val);
@@ -333,32 +364,38 @@ Bool LoadGameListNodes(void)
 		if (!LoadList(i,first_val,rest_val))
 		{
 			eprintf("LoadGameList can't set list node %i\n",i);
-			return False;
+			return false;
 		}
 	}
 	
-	return True;
+	return true;
 }
 
-Bool LoadGameTimer(void)
+bool LoadGameTimer(int file_version)
 {
-	int timer_id,object_id,milliseconds;
+	int timer_id,object_id,milliseconds32;
+  INT64 milliseconds64;
 	char buf[100];
 	
 	LoadGameReadInt(&timer_id);
 	LoadGameReadInt(&object_id);
 	LoadGameReadString(buf,sizeof(buf));
-	LoadGameReadInt(&milliseconds);
+	if (file_version == 0) {
+	  LoadGameReadInt(&milliseconds32);
+	  milliseconds64 = milliseconds32;
+	} else {
+	  LoadGameReadInt64(&milliseconds64);
+	}
 	
-	if (!LoadTimer(timer_id,object_id,buf,milliseconds))
+	if (!LoadTimer(timer_id,object_id,buf,milliseconds64))
 	{
 		eprintf("LoadGameTimer can't set timer %i\n",timer_id);
 		/* still ok */
 	}
-	return True;
+	return true;
 }
 
-Bool LoadGameUser(void)
+bool LoadGameUser(void)
 {   
 	int object_id,account_id;
 	
@@ -366,10 +403,10 @@ Bool LoadGameUser(void)
 	LoadGameReadInt(&object_id);
 	
 	LoadUser(account_id,object_id);
-	return True;
+	return true;
 }
 
-Bool LoadGameClass(void)
+bool LoadGameClass(void)
 {
 	int class_old_id,num_props,i;
 	char buf[100];
@@ -387,7 +424,7 @@ Bool LoadGameClass(void)
 		LoadAddPropertyName(lgc,i,buf);
 	}   
 	
-	return True;
+	return true;
 }
 
 
@@ -396,7 +433,7 @@ void LoadAddPropertyName(load_game_class_node *lgc,int prop_old_id,char *prop_na
 	load_game_prop_node *lgp;
 	
 	lgp = &lgc->props[prop_old_id-1];
-	lgp->namelen = strlen( prop_name ) ;
+	lgp->namelen = (int) strlen( prop_name );
 	
 	assert( lgp->namelen );
 
@@ -405,7 +442,7 @@ void LoadAddPropertyName(load_game_class_node *lgc,int prop_old_id,char *prop_na
 	strcpy(lgp->prop_name,prop_name);
 }
 
-Bool LoadGameResource(void)
+bool LoadGameResource(void)
 {
 	int resource_old_id;
 	char buf[100];
@@ -414,7 +451,7 @@ Bool LoadGameResource(void)
 	LoadGameReadString(buf,sizeof(buf));
 	
 	CreateLoadGameResource(resource_old_id,buf);
-	return True;
+	return true;
 }
 
 
@@ -501,7 +538,7 @@ void LoadGameTranslateVal(val_type *pval)
 		lgc = GetLoadGameClassByID(pval->v.data);
 		if (lgc == NULL)
 		{
-			eprintf("LoadGameTranslateVal unable to get class %i\n",pval->v.data);
+			eprintf("LoadGameTranslateVal unable to get class %" PRId64 "\n",pval->v.data);
 			break;
 		}
 		c = GetClassByName(lgc->class_name);
@@ -522,7 +559,7 @@ void LoadGameTranslateVal(val_type *pval)
 		resource_name = GetLoadGameResourceByID(pval->v.data);
 		if (resource_name == NULL)
 		{
-			eprintf("LoadGameTranslateVal unable to get resource %i\n",pval->v.data);
+			eprintf("LoadGameTranslateVal unable to get resource %" PRId64 "\n",pval->v.data);
 			break;
 		}
 
@@ -537,3 +574,14 @@ void LoadGameTranslateVal(val_type *pval)
 		pval->v.data = r->resource_id;
 	}
 }
+
+// Read a 32-bit Blakod value, storing it in our internal 64-bit value
+__inline bool LoadGameReadInt32To64(val_type *prop_val) {
+  // Convert 32-bit saved value to 64 bits internally
+  v0_val_type v0_val;
+  LoadGameReadInt(&v0_val);
+  prop_val->v.tag = v0_val.v.tag;
+  prop_val->v.data = v0_val.v.data;
+  return true;
+}
+

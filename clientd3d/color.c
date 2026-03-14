@@ -56,6 +56,11 @@ static char colorinfo[][15] = {
 	{ "255,255,255"},   /* COLOR_BAR4 */
 	{ "192,192,192"},   /* COLOR_INVNUMFGD */
 	{ "0,0,0"},         /* COLOR_INVNUMBGD */
+	{ "141,242,242"},	/* COLOR_ITEM_TEXT_UNCOMMON     - cyan   */
+	{ "0,255,0"},	    /* COLOR_ITEM_TEXT_RARE         - lime   */
+	{ "255,0,255"},     /* COLOR_ITEM_TEXT_LEGENDARY    - purple */
+	{ "252,128,0"},	    /* COLOR_ITEM_TEXT_UNIDENTIFIED - orange */
+	{ "255,0,0"},	    /* COLOR_ITEM_TEXT_CURSED       - red    */
 };
 
 static char color_section[] = "Colors";  /* Section for colors in INI file */
@@ -72,22 +77,22 @@ static char color_section[] = "Colors";  /* Section for colors in INI file */
 
 extern HPALETTE hPal;
 
-BOOL CALLBACK ColorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-Bool SetColor(WORD color, COLORREF cr);
+INT_PTR CALLBACK ColorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+bool SetColor(WORD color, COLORREF cr);
 /************************************************************************/
 /*
 * ColorsCreate:  Create all colors for use in the game.
-*  If use_defaults is False, try to load colors from INI file.
+*  If use_defaults is false, try to load colors from INI file.
 *  Otherwise use colors fonts.
 */
-void ColorsCreate(Bool use_defaults)
+void ColorsCreate(bool use_defaults)
 {
 	WORD i;
 	int temp;
 	BYTE red, green, blue;
 	char str[100], name[10], *ptr;
-	char *separators = ",";
-	Bool success;
+	const char *separators = ",";
+	bool success;
 
 	DefaultColor = PALETTERGB(255, 255, 255);
 	hDefaultBrush = (HBRUSH) GetStockObject(BLACK_BRUSH);
@@ -104,19 +109,19 @@ void ColorsCreate(Bool use_defaults)
 				strcpy(str, colorinfo[i]);
 			else
 			{
-				sprintf(name, "Color%d", i);
+				snprintf(name, sizeof(name), "Color%d", i);
 				GetPrivateProfileString(color_section, name, colorinfo[i], str, 100, ini_file);
 			}
 
-			success = True;
+			success = true;
 			if ((ptr = strtok(str, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-				success = False;
+				success = false;
 			else red = temp;
 			if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-				success = False;
+				success = false;
 			else green = temp;
 			if ((ptr = strtok(NULL, separators)) == NULL || sscanf(ptr, "%d", &temp) != 1)
-				success = False;
+				success = false;
 			else blue = temp;
 
 			if (success)
@@ -166,14 +171,14 @@ HBRUSH GetBrush(WORD color)
 /************************************************************************/
 /*
 * SetColor:  Set given user color # using given COLORREF.
-*   Returns True on success; returns False and uses default color on failure.
+*   Returns true on success; returns false and uses default color on failure.
 */
-Bool SetColor(WORD color, COLORREF cr)
+bool SetColor(WORD color, COLORREF cr)
 {
 	if (color > MAXCOLORS)
 	{
 		debug(("Illegal color #%u\n", color));
-		return False;
+		return false;
 	}
 
 	/* Round color to nearest match in our palette; this lets transparency work */
@@ -184,7 +189,7 @@ Bool SetColor(WORD color, COLORREF cr)
 		DeleteObject(brushes[color]);
 		brushes[color] = NULL;
 	}
-	return True;
+	return true;
 }
 /************************************************************************/
 /*
@@ -197,9 +202,9 @@ void ColorsSave(void)
 
 	for (i=0; i < MAXCOLORS; i++)
 	{
-		sprintf(str, "%d,%d,%d",
+		snprintf(str, sizeof(str), "%d,%d,%d",
 			GetRValue(colors[i]), GetGValue(colors[i]), GetBValue(colors[i]));
-		sprintf(name, "Color%d", i);
+		snprintf(name, sizeof(name), "Color%d", i);
 
 		WritePrivateProfileString(color_section, name, str, ini_file);
 	}
@@ -208,7 +213,7 @@ void ColorsSave(void)
 void ColorsRestoreDefaults(void)
 {
 	ColorsDestroy();
-	ColorsCreate(True);
+	ColorsCreate(true);
 	MainChangeColor();
 
 	ModuleEvent(EVENT_COLORCHANGED, -1, 0);
@@ -237,7 +242,7 @@ void UserSelectColor(WORD color)
 	SetColor(color, cc.rgbResult);
 
 	/* See if a module wants to intercept color change */
-	if (ModuleEvent(EVENT_COLORCHANGED, color, cc.rgbResult) == False)
+	if (ModuleEvent(EVENT_COLORCHANGED, color, cc.rgbResult) == false)
 		return;
 
 	MainChangeColor();
@@ -253,14 +258,14 @@ void UserSelectColors(WORD fg, WORD bg)
 	info.fg = fg;
 	info.bg = bg;
 
-	DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_COLOR), hMain,
+	SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_COLOR), hMain,
 		ColorDialogProc, (LPARAM) &info);
 }
 /************************************************************************/
 /*
 * ColorDialogProc:  Allow user to select foreground & background colors.
 */
-BOOL CALLBACK ColorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK ColorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static ColorDialogStruct *info;
 	static HWND hSample;
@@ -294,7 +299,7 @@ BOOL CALLBACK ColorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
 		UpdateWindow(hSample);
 
 		SelectObject(hdc, GetFont(FONT_TITLES));
-		TextOut(hdc, 0, 0, szAppName, strlen(szAppName));
+		TextOut(hdc, 0, 0, szAppName, (int) strlen(szAppName));
 
 		ReleaseDC(hSample, hdc);
 		break;
@@ -403,19 +408,36 @@ HBRUSH DialogCtlColor(HWND hwnd, HDC hdc, HWND hwndChild, int type)
 * GetItemListColor:  Get given color id # for given owner-drawn list box.
 *    (Inventory has different colors than popup dialog lists)
 *    Doesn't return color itself so that caller can use id to call GetBrush.
+*    Also colors item text in lists based on an object's rarity.
 */
-WORD GetItemListColor(HWND hwnd, int type)
+WORD GetItemListColor(HWND hwnd, int type, item_rarity_grade text_color_value)
 {
+	if (text_color_value != ITEM_RARITY_GRADE_NORMAL)
+	{
+		switch (text_color_value)
+		{
+			case ITEM_RARITY_GRADE_UNCOMMON:
+				return COLOR_ITEM_TEXT_UNCOMMON;
+			case ITEM_RARITY_GRADE_RARE:
+				return COLOR_ITEM_TEXT_RARE;
+			case ITEM_RARITY_GRADE_LEGENDARY:
+				return COLOR_ITEM_TEXT_LEGENDARY;
+			case ITEM_RARITY_GRADE_UNIDENTIFIED:
+				return COLOR_ITEM_TEXT_UNIDENTIFIED;
+			case ITEM_RARITY_GRADE_CURSED:
+				return COLOR_ITEM_TEXT_CURSED;
+		}
+	}
 	switch(type)
 	{
-	case UNSEL_FGD:
-		return COLOR_LISTFGD;
-	case UNSEL_BGD:
-		return COLOR_LISTBGD;
-	case SEL_FGD:
-		return COLOR_LISTSELFGD;
-	case SEL_BGD:
-		return COLOR_LISTSELBGD;
+		case UNSEL_FGD:
+			return COLOR_LISTFGD;
+		case UNSEL_BGD:
+			return COLOR_LISTBGD;
+		case SEL_FGD:
+			return COLOR_LISTSELFGD;
+		case SEL_BGD:
+			return COLOR_LISTSELBGD;
 	}
 	return 0;
 }
@@ -425,7 +447,7 @@ WORD GetItemListColor(HWND hwnd, int type)
 * GetPlayerNameColor:  Return color that player's name should be drawn in,
 *   depending on player's object flags
 */
-COLORREF GetPlayerNameColor(int flags,char*name)
+COLORREF GetPlayerNameColor(int flags,const char*name)
 {
 	if (GetDrawingEffect(flags) == OF_BLACK)
 		return NAME_COLOR_BLACK_FG;

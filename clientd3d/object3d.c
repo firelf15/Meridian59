@@ -45,9 +45,7 @@ extern BYTE *gBits;                /* Actual pixels of bitmap */
 extern player_info player;
 extern long viewer_height;      /* Viewer's height above floor, in fine coordinates */
 
-extern long horizon;
-
-extern Color base_palette[];         
+extern long horizon;      
 
 static RECT orect;  /* Hold rectangle actually occupied by last object drawn */
 
@@ -58,13 +56,17 @@ ObjectRange visible_objects[MAXOBJECTS];    /* Where objects are on screen */
 // Inner loops for drawing objects with special effects
 extern DrawingLoop drawing_loops[];
 
+// Main client windows current viewport area
+extern int main_viewport_width;
+extern int main_viewport_height;
+
 /* local function prototypes */
 static void SortObjects(DrawnObject *objects, int *indices, int max_object);
 static void ComputeObjectArea(PDIB pdib, int center, int distance, int height, AREA *a, int *cutoff);
 static void ComputeOverlayArea(int distance, AREA *obj, int obj_stretch, AREA *ov, int ov_stretch);
 int  FindHotspotPdib(PDIB pdib, char hotspot, POINT *point);
-static Bool DrawObjectOverlays( DrawObjectInfo *dos, list_type overlays, PDIB pdib_obj,
-			       AREA *obj_area, int angle, Bool underlays, Bool bTargetSelectEffect );
+static bool DrawObjectOverlays(DrawObjectInfo *dos, list_type overlays, PDIB pdib_obj,
+                               AREA *obj_area, int angle, bool underlays, bool bTargetSelectEffect);
 /************************************************************************/
 /*
  * DrawObject3D:  Draw the single object described by the given DrawnObject structure.
@@ -77,10 +79,10 @@ BOOL DrawObject3D(DrawnObject *object, ViewCone *clip)
 	int  object_stretch;  // Factor to scale bitmap down when drawing it
 	AREA object_area;     // Area in which to draw object
 	DrawObjectInfo dos;   // Info for drawing object
-	Bool visible, temp;
+	bool visible, temp;
 	int cutoff;           // Last row of object to be drawn on screen.
 
-	Bool bShowTargetSelectEffect = FALSE;
+	bool bShowTargetSelectEffect = false;
 
 	ZeroMemory(&dos,sizeof(dos));
 
@@ -122,10 +124,10 @@ BOOL DrawObject3D(DrawnObject *object, ViewCone *clip)
 	for(;;) 	//	Do twice if bShowTargetSelectEffect and there are overlays (so that inner halo lines get erased by 2nd pass).
 	{
 		dos.cutoff = cutoff;
-		visible = False;
+		visible = false;
 		if (object->overlays != NULL)
 		{
-			temp = DrawObjectOverlays( &dos, object->overlays, pdib_obj, &object_area, angle, True, bShowTargetSelectEffect );
+			temp = DrawObjectOverlays( &dos, object->overlays, pdib_obj, &object_area, angle, true, bShowTargetSelectEffect );
 			visible = visible || temp;
 		}
 
@@ -139,7 +141,7 @@ BOOL DrawObject3D(DrawnObject *object, ViewCone *clip)
 		// Draw overlays
 		if (object->overlays != NULL)
 		{
-			temp = DrawObjectOverlays( &dos, object->overlays, pdib_obj, &object_area, angle, False, bShowTargetSelectEffect );
+			temp = DrawObjectOverlays( &dos, object->overlays, pdib_obj, &object_area, angle, false, bShowTargetSelectEffect );
 			visible = visible || temp;
 		}
 		if( object->overlays == NULL || !bShowTargetSelectEffect )
@@ -170,10 +172,10 @@ BOOL DrawObject3D(DrawnObject *object, ViewCone *clip)
 		}
 
 		/* Record boundaries of drawing area */
-		range->left_col   = min(range->left_col, orect.left);
-		range->right_col  = max(range->right_col, orect.right);
-		range->top_row    = min(range->top_row, orect.top);
-		range->bottom_row = max(range->bottom_row, orect.bottom);
+		range->left_col   = std::min(range->left_col, orect.left);
+		range->right_col  = std::max(range->right_col, orect.right);
+		range->top_row    = std::min(range->top_row, orect.top);
+		range->bottom_row = std::max(range->bottom_row, orect.bottom);
 	}
 
 	return TRUE;
@@ -183,20 +185,20 @@ BOOL DrawObject3D(DrawnObject *object, ViewCone *clip)
 /*
  * DrawObjectOverlays:  Draw overlays on object whose bitmap is dos->pdib.
  *   angle is angle that object is being viewed at.
- *   If underlays is True, draw only those overlays which should be drawn
+ *   If underlays is true, draw only those overlays which should be drawn
  *     before the object is drawn.
- *   Return True iff at least part of one overlay is visible.
+ *   Return true iff at least part of one overlay is visible.
  */
-Bool DrawObjectOverlays( DrawObjectInfo *dos, list_type overlays, PDIB pdib_obj,
-			AREA *obj_area, int angle, Bool underlays, Bool bTargetSelectEffect )
+bool DrawObjectOverlays( DrawObjectInfo *dos, list_type overlays, PDIB pdib_obj,
+			AREA *obj_area, int angle, bool underlays, bool bTargetSelectEffect )
 {
 	list_type l;
 	AREA overlay_area;
 	int pass;  // Which pass of overlays are we on; 0 = under; 1 = normal; 2 = over
 	int depth; // Current overlay depth to match
-	Bool visible, temp;
+	bool visible, temp;
 
-	visible = False;
+	visible = false;
 	for (pass = 0; pass < 3; pass++)
 	{
 		if (underlays)
@@ -245,9 +247,9 @@ Bool DrawObjectOverlays( DrawObjectInfo *dos, list_type overlays, PDIB pdib_obj,
 /*
  * DrawObjectBitmap:  Draw given bitmap in given rectangle on screen.
  *   The rectangle is clipped to the screen.
- * Return True iff the object is at least partly visible.
+ * Return true iff the object is at least partly visible.
  */
-Bool DrawObjectBitmap( DrawObjectInfo *dos, AREA *obj_area, Bool bTargetSelectEffect )
+bool DrawObjectBitmap( DrawObjectInfo *dos, AREA *obj_area, bool bTargetSelectEffect )
 {
    long x, xinc, y, yinc;
    long startx, endx, starty, endy, bitmap_width;
@@ -258,33 +260,30 @@ Bool DrawObjectBitmap( DrawObjectInfo *dos, AREA *obj_area, Bool bTargetSelectEf
    int effect;
    ObjectRowData d;
 
-//	Bool	bClipHaloLeft;
-//	Bool	bClipHaloRight;
-
    if (obj_area->cx == 0 || obj_area->cy == 0)
-      return False;
+      return false;
 
    c = dos->cone;
 
    /* Clip object to sides of screen */
-   startx = max(0, obj_area->x);
-   endx = min(area.cx - 1, obj_area->x + obj_area->cx - 1);
+   startx = std::max(0L, (long)obj_area->x);
+   endx = std::min((long)(area.cx - 1), (long)(obj_area->x + obj_area->cx - 1));
 
-   starty = max(0, obj_area->y);
-   endy = min(area.cy - 1, obj_area->y + obj_area->cy - 1);
+   starty = std::max(0L, (long)obj_area->y);
+   endy = std::min((long)(area.cy - 1), (long)(obj_area->y + obj_area->cy - 1));
 
    // Cut off bottom of bitmap at ground level
-   endy = min(endy, dos->cutoff);
+   endy = std::min(endy, (long)dos->cutoff);
 
-   startx = max(startx, c->leftedge);
-   endx = min(endx, c->rightedge);
+   startx = std::max(startx, (long)c->leftedge);
+   endx = std::min(endx, (long)c->rightedge);
 
    /* See if completely off screen */
    if (endx < 0 || endy < 0 || startx >= area.cx || starty >= area.cy)
-      return False;
+      return false;
 
    if (!dos->draw)
-      return True;
+      return true;
 
    obj_bits = DibPtr(dos->pdib);
    bitmap_width = DibWidth(dos->pdib);
@@ -295,23 +294,23 @@ Bool DrawObjectBitmap( DrawObjectInfo *dos, AREA *obj_area, Bool bTargetSelectEf
    lefttop = DIVUP(c->top_b * c->leftedge + c->top_d, c->top_a);
    righttop = DIVUP(c->top_b * c->rightedge + c->top_d, c->top_a);
    if (lefttop < righttop)
-      starty = max(starty, lefttop);
+      starty = std::max(starty, lefttop);
    else
-      starty = max(starty, righttop);
+      starty = std::max(starty, righttop);
 
    leftbot = DIVDOWN(c->bot_b * c->leftedge + c->bot_d, c->bot_a);
    rightbot = DIVDOWN(c->bot_b * c->rightedge + c->bot_d, c->bot_a);
    if (leftbot > rightbot)
-      endy = min(endy, leftbot);
+      endy = std::min(endy, leftbot);
    else
-      endy = min(endy, rightbot);
+      endy = std::min(endy, rightbot);
 
    /* Save object drawing rectangle */
    //	(Enlarge boundaries encompassing all bitmaps in this object.)
-   orect.left   = min(orect.left, startx);
-   orect.right  = max(orect.right, endx);
-   orect.top    = min(orect.top, starty);
-   orect.bottom = max(orect.bottom, endy);
+   orect.left   = std::min((long)orect.left, startx);
+   orect.right  = std::max((long)orect.right, endx);
+   orect.top    = std::min((long)orect.top, starty);
+   orect.bottom = std::max((long)orect.bottom, endy);
 
    y = (starty - obj_area->y) * yinc;
 
@@ -388,150 +387,25 @@ Bool DrawObjectBitmap( DrawObjectInfo *dos, AREA *obj_area, Bool bTargetSelectEf
 	 d.obj_bits	= row_bits;
 	 d.x		= x;
 	 d.xinc		= xinc;
-	 DrawTargetHalo( &d, obj_bits, y, yinc, bitmap_width, (Bool)( row == starty ), (Bool)( row == endy ) );	//, bClipHaloLeft, bClipHaloRight );
+	 DrawTargetHalo( &d, obj_bits, y, yinc, bitmap_width, ( row == starty ), ( row == endy ) );
       }
 
 
       // Handle common case of no effects specially here
       if (d.translation == 0 && GetDrawingEffect(d.flags) == 0)
       {	 // Draw normally
-#if 1
-	 while (screen_ptr <= end_screen_ptr)
-	 {
-	    /* Don't draw transparent pixels */
-	    register BYTE color = *(row_bits + (x >> FIX_DECIMAL));
-	    if (color != TRANSPARENT_INDEX)
-	       *screen_ptr = palette[color];
 
-	    /* Move to next column of screen */
-	    screen_ptr++;
-	    x += xinc;
-	 }
-#else
-	 __asm 
-	 {
-	    push  ebp;
-	    mov   ebp, palette;
-	    xor   eax, eax;
-	    mov	  ecx, end_screen_ptr;
-	    mov   edi, screen_ptr;
-	    sub	  ecx, edi;
-	    jl	  END_TRANS_BLIT;
-	    inc	  ecx;
-	    mov	  ebx, x;
-	    mov	  edx, row_bits;
-	    cmp	  ecx, 4;
-	    jl	  DO_REMAINDER;
-DRAW_TRANSPARENT0:
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    jne	  SOLID0;
-;DRAW_TRANSPARENT1:
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    jne	  SOLID1;
-DRAW_TRANSPARENT2:
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    jne	  SOLID2;
-DRAW_TRANSPARENT3:
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    jne	  SOLID3;
-
-	    // Done our 4 pixels, so move to next group
-END_TRANSPARENT:
-	    add	  edi,4;
-	    sub	  ecx,4;
-	    jle	  END_TRANS_BLIT;
-	    cmp	  ecx,4;
-	    jge	  DRAW_TRANSPARENT0;
-	    jmp	  DO_REMAINDER;
-
-	    // This is for drawing solid bytes
-SOLID0:
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi],al;	        // Save the byte on the screen
-	    mov	  esi, ebx;		        // Get the next byte
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  DRAW_TRANSPARENT2;
-SOLID1:
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi+1],al;
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  DRAW_TRANSPARENT3;
-SOLID2:
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi+2],al;
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  END_TRANSPARENT;
-SOLID3:
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi+3],al;
-	    add	  edi,4;
-	    sub	  ecx,4;
-	    jle	  END_TRANS_BLIT;
-	    cmp	  ecx,4;
-	    jge	  DRAW_TRANSPARENT0;
-DO_REMAINDER:
-	    dec	  ecx;
-	    jl	  END_TRANS_BLIT;
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  DO_REMAINDER1;
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi],al;
-DO_REMAINDER1:
-	    dec	  ecx;
-	    jl	  END_TRANS_BLIT;
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    add	  ebx, xinc;
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  DO_REMAINDER2;
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi+1],al;
-DO_REMAINDER2:
-	    dec	  ecx;
-	    jl	  END_TRANS_BLIT;
-	    mov	  esi, ebx;
-	    shr	  esi, FIX_DECIMAL;
-	    mov	  al, BYTE PTR [esi + edx];
-	    cmp	  al, TRANSPARENT_INDEX;
-	    je	  END_TRANS_BLIT;
-	    mov   al, BYTE PTR [ebp + eax];
-	    mov	  BYTE PTR [edi+2],al;
-END_TRANS_BLIT:
-	    pop   ebp;
-	 }
-#endif
+        while (screen_ptr <= end_screen_ptr)
+        {
+          /* Don't draw transparent pixels */
+          BYTE color = *(row_bits + (x >> FIX_DECIMAL));
+          if (color != TRANSPARENT_INDEX)
+            *screen_ptr = palette[color];
+          
+          /* Move to next column of screen */
+          screen_ptr++;
+          x += xinc;
+        }
       }
       else
       {
@@ -560,7 +434,7 @@ END_TRANS_BLIT:
 	 }
       }
    }
-   return True;
+   return true;
 }
 /************************************************************************/
 /*
@@ -634,15 +508,15 @@ void ComputeOverlayArea(int distance, AREA *obj, int obj_stretch, AREA *ov, int 
  *   overlay_depth tells which depth of overlay to match (HOTSPOT_OVER, etc.).  If this
  *     is HOTSPOT_ANY, the depth is ignored; any hotspot with the correct number matches.
  *
- *   If this bitmap should be drawn now, fill in overlay_area and return True.
- *   Otherwise, return False.
+ *   If this bitmap should be drawn now, fill in overlay_area and return true.
+ *   Otherwise, return false.
  */
-Bool FindOverlayArea(PDIB pdib_ov, int angle, char hotspot, PDIB pdib_obj, list_type overlays,
-		     int overlay_depth, AREA *overlay_area)
+bool FindOverlayArea(PDIB pdib_ov, int angle, char hotspot, PDIB pdib_obj, list_type overlays,
+                     int overlay_depth, AREA *overlay_area)
 {
    // If overlay doesn't have a hotspot, draw it as an overlay
    if (hotspot == 0 && overlay_depth != HOTSPOT_OVER)
-      return False;
+      return false;
 
    // See if overlay should be placed on hotspot
    if (hotspot != 0)
@@ -658,11 +532,11 @@ Bool FindOverlayArea(PDIB pdib_ov, int angle, char hotspot, PDIB pdib_obj, list_
 	 // Don't complain, since having missing hotspots is sometimes useful
 	 //	    debug(("Failed to find overlay %d for bitmap %d\n", 
 	 //		    overlay->hotspot, overlay->icon_res));
-	 return False;
+	 return false;
       }
       
       if (overlay_depth != HOTSPOT_ANY && retval != overlay_depth)
-	 return False;
+	 return false;
       
       // Move overlay to hotspot
       overlay_area->x = hotspot_pos.x;
@@ -676,7 +550,7 @@ Bool FindOverlayArea(PDIB pdib_ov, int angle, char hotspot, PDIB pdib_obj, list_
 
    overlay_area->cx = DibWidth(pdib_ov);
    overlay_area->cy = DibHeight(pdib_ov);
-   return True;
+   return true;
 }
 /************************************************************************/
 /*
@@ -787,9 +661,9 @@ int FindHotspotPdib(PDIB pdib, char hotspot, POINT *point)
 /*
  * GetObjectSize: Figure out size of an object's bitmap and overlays,
  *   and set width and height to these values.
- *   Return True on success.
+ *   Return true on success.
  */
-Bool GetObjectSize(ID icon_res, int group, int angle, list_type overlays, int *width, int *height)
+bool GetObjectSize(ID icon_res, int group, int angle, list_type overlays, int *width, int *height)
 {
   PDIB pdib, pdib_ov;
   int min_x, max_x;
@@ -798,20 +672,20 @@ Bool GetObjectSize(ID icon_res, int group, int angle, list_type overlays, int *w
   
   pdib = GetObjectPdib(icon_res, angle, group);
   if (!pdib)
-    return False;
+    return false;
   
   /* find width of primary bitmap */
   min_x = min_y = 0;
   max_x = BitmapToFineness(DibWidth(pdib)) / DibShrinkFactor(pdib);
   max_y = BitmapToFineness(DibHeight(pdib)) / DibShrinkFactor(pdib);
-  
+
   /* find width of overlays */
   for(l = overlays; l != NULL; l = l->next)
   {
      Overlay *overlay = (Overlay *) (l->data);
      char hotspot = overlay->hotspot;
      AREA ov_area;
-     
+
      pdib_ov = GetObjectPdib(overlay->icon_res, angle, overlay->animate.group);
      if (pdib_ov == NULL)
 	continue;
@@ -826,15 +700,15 @@ Bool GetObjectSize(ID icon_res, int group, int angle, list_type overlays, int *w
      ov_area.cy = BitmapToFineness(ov_area.cy) / DibShrinkFactor(pdib_ov);
      ov_area.y  = BitmapToFineness(ov_area.y) / OVERLAY_FACTOR;
 
-     min_x = min(min_x, ov_area.x);
-     max_x = max(max_x, ov_area.x + ov_area.cx);
+     min_x = std::min(min_x, (int)ov_area.x);
+     max_x = std::max(max_x, (int)(ov_area.x + ov_area.cx));
 
-     min_y = min(min_y, ov_area.y);
-     max_y = max(max_y, ov_area.y + ov_area.cy);
+     min_y = std::min(min_y, (int)ov_area.y);
+     max_y = std::max(max_y, (int)(ov_area.y + ov_area.cy));
   }
   *width  = max_x - min_x;
   *height = max_y - min_y;
-  return True;
+  return true;
 }
 
 /************************************************************************/
@@ -846,7 +720,6 @@ void DrawObjectDecorations(DrawnObject *object)
 {
    ObjectRange *range;
    char *name;
-   int namelen;
    int x, y;
    SIZE s;
    COLORREF fg_color, bg_color;
@@ -871,16 +744,18 @@ void DrawObjectDecorations(DrawnObject *object)
       return;
    
    name = LookupNameRsc(r->obj.name_res);
-   namelen = strlen(name);
+   int namelen = (int) strlen(name);
 
    // Center over object
-   GetTextExtentPoint32(gBitsDC, name, strlen(name), &s);
+   GetTextExtentPoint32(gBitsDC, name, namelen, &s);
    x = (range->left_col + range->right_col - s.cx) / 2;
    y = range->top_row - s.cy - 2;
 
    // Give a shadowed look to be visible on all color backgrounds
    fg_color = GetPlayerNameColor(r->obj.flags,name);
    bg_color = NAME_COLOR_NORMAL_BG;
+
+   const auto& base_palette = getBasePalette();
 
    // Some names never grow darker, they use PALETTEINDEX().
    if (HIBYTE(HIWORD(fg_color)) == HIBYTE(HIWORD(PALETTEINDEX(0))))

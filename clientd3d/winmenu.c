@@ -8,13 +8,11 @@
 /*
  * winmenu.c:  Handle main client window menu.
  */
-
 #include "client.h"
 
 static HMENU menu;          // Main menu
 
 extern int connection;
-extern Bool gLargeArea;
 
 /* local function prototypes */
 /****************************************************************************/
@@ -45,7 +43,6 @@ void MenuDisplaySettings(HWND hwnd)
    CheckMenuItem(menu, ID_OPTIONS_SAVEEXIT, config.save_settings ? MF_CHECKED : MF_UNCHECKED);
    CheckMenuItem(menu, ID_OPTIONS_MUSIC, config.play_music ? MF_CHECKED : MF_UNCHECKED);
    CheckMenuItem(menu, ID_OPTIONS_SOUND, config.play_sound ? MF_CHECKED : MF_UNCHECKED);
-   CheckMenuItem(menu, ID_OPTIONS_AREA, config.large_area ? MF_CHECKED : MF_UNCHECKED);
 }
 /****************************************************************************/
 /*
@@ -86,7 +83,7 @@ void MenuCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
    KeySetLastNorepeatTime();
 
    // See if module wants to handle menu selection
-   if (ModuleEvent(EVENT_MENUITEM, id) == False)
+   if (ModuleEvent(EVENT_MENUITEM, id) == false)
       return;
    
    /* Handle menu selections */
@@ -115,15 +112,10 @@ void MenuCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
       break;
 
    case ID_GAME_SETTINGS:
-      if (DialogBox(hInst, MAKEINTRESOURCE(IDD_SETTINGS), hMain, PreferencesDialogProc) == IDOK)
       {
+         ShowPreferencesDialog(hMain);
          ModuleEvent(EVENT_CONFIGCHANGED);
-         MenuDisplaySettings(hMain);
       }
-      break;
-
-  case ID_CONFIGMENU:
-	  ConfigMenuLaunch();
       break;
 
    case ID_GAME_PASSWORD:
@@ -142,7 +134,7 @@ void MenuCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
       config.play_sound = !config.play_sound;
       CheckMenuItem(menu, ID_OPTIONS_SOUND, config.play_sound ? MF_CHECKED : MF_UNCHECKED);
       if (!config.play_sound)
-	 SoundAbort();
+	 SoundStopAll();
       break;
    case ID_OPTIONS_SAVENOW:
       SaveSettings();
@@ -157,20 +149,13 @@ void MenuCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	   // this means a shutdown and restart are necessary for window size changes
 	   MessageBox(hMain, "You must shutdown and restart Meridian 59 for these changes to take effect",
 		   "Direct3D", MB_OK);
-		   
-//      config.large_area = !config.large_area;
-	   gLargeArea = !gLargeArea;
-      CheckMenuItem(menu, ID_OPTIONS_AREA, gLargeArea ? MF_CHECKED : MF_UNCHECKED);
-/*      if (state == STATE_GAME)
-	 // Send ourselves a resize message 
-	 ResizeAll();
-      RedrawAll();*/
       break;
-
    case ID_OPTIONS_FONT_MAP_TITLE: UserSelectFont(FONT_MAP_TITLE); break;
    case ID_OPTIONS_FONT_MAP_LABEL: UserSelectFont(FONT_MAP_LABEL); break;
    case ID_OPTIONS_FONT_MAP_TEXT: UserSelectFont(FONT_MAP_TEXT); break;
-
+   case ID_FONT_ANNOTATIONS:
+      UserSelectFont(FONT_MAP_ANNOTATIONS);
+      break;
    case ID_FONT_GAMETEXT:
       UserSelectFont(FONT_EDIT);
       break;

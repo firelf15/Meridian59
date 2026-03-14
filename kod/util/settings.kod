@@ -140,6 +140,16 @@ properties:
    % a player in hatred calculations. This is off by default, enabling it
    % will allow players to attack monsters without them fighting back.
    pbAlwaysCheckMonsterChasers = FALSE
+   
+   % Broadcast mana penalty in percent.  While the cost to broadcast can be
+   % useful to prevent flame wars and spamming, it also reduces player's
+   % ability to ask questions and socialize.  (Puts a damper on trivia
+   % contests too!)  This value can be changed to tweak the penalty in realtime
+   piBroadcastManaCostPercent = 50
+
+   % If enabled, door opening sounds are shared with all players in the room.
+   % If disabled, only the player opening the door hears the sound.
+   pbDoorSoundShared = TRUE
 
 messages:
 
@@ -322,7 +332,7 @@ messages:
       return pbHometownPenaltiesEnable;
    }
    
-   % Returns if a player should recive a 'penalty' for logging of in a safe zone
+   % Returns if a player should receive a 'penalty' for logging off in a safe zone
    LogSafePenaltyEnable()
    {
       return pbLogSafePenaltyEnable;
@@ -343,5 +353,14 @@ messages:
       return pbAlwaysCheckMonsterChasers;
    }
 
+   GetBroadcastManaCostPercent()
+   {
+      return piBroadcastManaCostPercent;
+   }
+
+   DoorSoundSharedEnabled()
+   {
+      return pbDoorSoundShared;
+   }
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

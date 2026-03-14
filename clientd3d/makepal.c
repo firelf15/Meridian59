@@ -147,7 +147,7 @@ void WritePalette(char *dir)
    char tempbuf[512];
    int i, j;
 
-   sprintf(tempbuf, "%s\\%s", dir, output_file);
+   snprintf(tempbuf, sizeof(tempbuf), "%s\\%s", dir, output_file);
    palfile = fopen(tempbuf, "wt");
 
    if (palfile == NULL)
@@ -283,13 +283,8 @@ void MakeLightPalettes(void)
    for (i=0; i < LIGHT_LEVELS; i++)
    {
       /* Quadratic dependence so that there are more palettes close to full brightness */
-#if 1
       factor = 1 - ((float) LIGHT_LEVELS - i) / LIGHT_LEVELS * 
 	           ((float) LIGHT_LEVELS - i) / LIGHT_LEVELS;
-#else
-      factor = ((float) LIGHT_LEVELS - i) / LIGHT_LEVELS * 
-	           ((float) LIGHT_LEVELS - i) / LIGHT_LEVELS;
-#endif
 
       for (j=0; j < NUM_COLORS; j++)
       {

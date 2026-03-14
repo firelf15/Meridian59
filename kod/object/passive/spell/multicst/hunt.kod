@@ -43,6 +43,9 @@ resources:
 
    hunt_lost_trackers = "You seem to have managed to lose your trackers!"
    hunt_gain_trackers = "You sense that someone knows where you are..."
+   hunt_target_offline = \
+      "You feel the magical trail begin to reach out in vain for your target, "
+      "but finding nothing it dissipates.  The target is no longer in the world."
 
 classvars:
 
@@ -59,7 +62,6 @@ classvars:
    viSpell_level = 5
 
    viSpellExertion = 50
-   viCast_time = 20000
    viChance_To_Increase = 50
 
    % Drain is amount used every viDrainTime milliseconds
@@ -104,6 +106,17 @@ messages:
 
       oTarget = First(lTargets);
 
+      % Check if target is online before applying the enchantment
+      if oTarget <> $ AND NOT Send(oTarget,@IsLoggedOn)
+      {
+         for i in lCasters
+         {
+            Send(i,@MsgSendUser,#message_rsc=hunt_target_offline);
+         }
+         
+         return;
+      }
+
       for i in Send(oPrism,@GetCasters)
       {
          if i = oTarget
@@ -147,7 +160,7 @@ messages:
 
    SomethingSaidDuringTrance(who=$,string=$)
    {
-      local oPrism, oPrey, lTargets;
+      local oPrey, lTargets;
 
       oPrey = Send(SYS,@FindUserByString,#string=string);
 
@@ -218,6 +231,17 @@ messages:
       return FALSE;
    }
 
+   RestartEnchantmentEffect(who=$, state=$)
+   {
+      Send(who,@MsgSendUser,#message_rsc=hunt_gain_trackers);
+
+      return;
+   }
+
+   ShowEnchantmentIcon(type=$)
+   {
+      return FALSE;
+   }
 
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

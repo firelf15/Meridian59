@@ -26,9 +26,9 @@ constants:
 
 resources:
 
-   weapattVamper_desc = "  An unholy glow seems to suck all life from the air around the weapon."      
+   weapattVamper_desc = "An unholy glow seems to suck all life from the air around the weapon."      
    Vamper_dm = "Vamper"
-   Vamper_fail_use = "You are not ready to use %s%s."
+   Vamper_fail_use = "You are not yet ready to use %s%s."
    Vamper_fail_use_karma = "You are not unholy enough to wield this despotic thing."
    vamper_worked = "%s%s shudders as %s life is sucked away!"
    vamper_worked_target = "%s%s seems enervated as the metal of %s weapon touches your flesh!"
@@ -58,9 +58,8 @@ messages:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       
    ModifyDamage(damage = 0, target = $, wielder = $, lData= $)
-   "Wielder has a 1% chance of blinding target with any hit."
+   "Wielder has a 1% chance of stealing life from target with any hit."
    {
-      local oSpell;
       if random(1,100) <= piEffect_percent
       {
 	 send(wielder,@GainHealth,#amount = bound(damage,0,8));
@@ -79,11 +78,6 @@ messages:
 
    ItemReqUse(oItem=$,oPlayer=$)
   {
-      if send(oPlayer,@GetKarma) > -30
-      {
-	 send(oPlayer, @MsgSendUser, #message_rsc = Vamper_fail_use_karma);
-	 return FALSE;	    
-      }
       if send(oItem,@GetProf,#who=oPlayer) < 50      
       {
 	 send(oPlayer, @MsgSendUser, #message_rsc = Vamper_fail_use,
@@ -91,6 +85,11 @@ messages:
 	 return FALSE;      %% this person needs 50% in the weapon's proficiency to use
       }
       return TRUE;
+   }
+
+   GetRarityCountModifier()
+   {
+      return 1;
    }
 
 end

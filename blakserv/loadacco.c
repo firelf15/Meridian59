@@ -35,11 +35,11 @@ int lineno;
 static int highestAccount = -1;
 
 /* local function prototypes */
-Bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
+bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
 		     char *type_str,char *last_login_str,char *suspend_str,
 		     char *credits_str);
 
-Bool LoadAccounts(char *filename)
+bool LoadAccounts(char *filename)
 {
    FILE *accofile;
    char line[MAX_ACCOUNT_LINE+1];
@@ -50,7 +50,7 @@ Bool LoadAccounts(char *filename)
    {
       eprintf("LoadAccounts can't open %s to load the accounts!\n",
 	      filename);
-      return False;
+      return false;
    }
 
    highestAccount = -1;
@@ -81,7 +81,7 @@ Bool LoadAccounts(char *filename)
 	 if (!LoadLineAccount(t1,t2,t3,t4,t5,t7,t6))
 	 {
 	    fclose(accofile);
-	    return False;
+	    return false;
 	 }
 	 else
 	    continue;
@@ -93,7 +93,7 @@ Bool LoadAccounts(char *filename)
       }
 
       eprintf("LoadAccounts can't handle account file line type %s\n",type_str);
-      return False;     
+      return false;     
    }
 
    fclose(accofile);
@@ -104,14 +104,15 @@ Bool LoadAccounts(char *filename)
    dprintf("LoadAccounts successfully loaded accounts from %s\n",ACCOUNT_FILE);
    */
 
-   return True;
+   return true;
 }
 
-Bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
+bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
 		     char *type_str,char *last_login_str,char *suspend_str,
 		     char *credits_str)
 {   
-   int account_id,type,last_login_time,suspend_time,credits;
+   int account_id,type,credits;
+   INT64 last_login_time,suspend_time;
    int index;
    char decoded[100];
    char *ptr,*end_password;
@@ -123,11 +124,11 @@ Bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
        type_str == NULL || last_login_str == NULL || credits_str == NULL ||
        sscanf(account_str,"%i",&account_id) != 1 ||
        sscanf(type_str,"%i",&type) != 1 ||
-       sscanf(last_login_str,"%i",&last_login_time) != 1 ||
+       sscanf(last_login_str,"%" SCNi64,&last_login_time) != 1 ||
        sscanf(credits_str,"%i",&credits) != 1)
    {
       eprintf("LoadLineAccount (%i) found invalid account\n",lineno);
-      return False;
+      return false;
    }
 
    /* optional fields of line */
@@ -135,7 +136,7 @@ Bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
    suspend_time = 0;
    if (suspend_str)
    {
-      sscanf(suspend_str, "%i", &suspend_time);
+      sscanf(suspend_str, "%" SCNi64, &suspend_time);
    }
 
    /* now decode the password */
@@ -157,7 +158,7 @@ Bool LoadLineAccount(char *account_str,char *name_str,char *password_str,
    }
 
    LoadAccount(account_id,name_str,decoded,type,last_login_time,suspend_time,credits);
-   return True;
+   return true;
 }
 
 

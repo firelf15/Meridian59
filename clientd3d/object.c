@@ -10,36 +10,34 @@
  */
 #include "client.h"
 
-extern player_info player;
-extern room_type current_room;
 extern int sector_depths[];
 
 /************************************************************************/
 /*
- * CompareId: Compare two id #s; return True iff they
+ * CompareId: Compare two id #s; return true iff they
  *    have the same id #.
  */
-Bool CompareId(void *id1, void *id2)
+bool CompareId(void *id1, void *id2)
 {
-   return (ID) id1 == (ID) id2;
+   return reinterpret_cast<std::intptr_t>(id1) == reinterpret_cast<std::intptr_t>(id2);
 }
 /************************************************************************/
 /*
- * CompareIdObject: Compare an id # with an object; return True iff they
+ * CompareIdObject: Compare an id # with an object; return true iff they
  *    have the same id #.
  */
-Bool CompareIdObject(void *idnum, void *obj)
+bool CompareIdObject(void *idnum, void *obj)
 {
-   return GetObjId((ID) idnum) == GetObjId(((object_node *) obj)->id);
+   return GetObjId(reinterpret_cast<std::intptr_t>(idnum)) == GetObjId(((object_node *) obj)->id);
 }
 /************************************************************************/
 /*
  * CompareIdRoomObject: Compare an id # with an object in a list of room contents; 
- *    return True iff they have the same id #.
+ *    return true iff they have the same id #.
  */
-Bool CompareIdRoomObject(void *idnum, void *obj)
+bool CompareIdRoomObject(void *idnum, void *obj)
 {
-   return GetObjId((ID) idnum) == GetObjId(((room_contents_node *) obj)->obj.id);
+   return GetObjId(reinterpret_cast<std::intptr_t>(idnum)) == GetObjId(((room_contents_node *) obj)->obj.id);
 }
 /************************************************************************/
 /*
@@ -49,6 +47,29 @@ Bool CompareIdRoomObject(void *idnum, void *obj)
 int CompareRoomObjectDistance(void *r1, void *r2)
 {
    return ((room_contents_node *) r1)->distance - ((room_contents_node *) r2)->distance;
+}
+/*************************************************************************/
+// Hierarchical compare objects - first on IsNumberObj then alphabetical
+//
+int CompareObjectNameAndNumber(void *obj1, void *obj2)
+{
+    // Cast obj1 and obj2 to the correct type
+   object_node *node1 = (object_node *)obj1;
+   object_node *node2 = (object_node *)obj2;
+
+   if (IsNumberObj(node1->id) != IsNumberObj(node2->id))
+   {
+      // Node2 before Node1 so that number objects are on top
+      return (IsNumberObj(node2->id) - IsNumberObj(node1->id));
+   }
+   else
+   {
+      // Extract strings to compare
+      const char *string1 = LookupNameRsc(node1->name_res);
+      const char *string2 = LookupNameRsc(node2->name_res);
+
+      return stricmp(string1, string2);
+   }
 }
 /*****************************************************************************/
 /*
@@ -72,6 +93,11 @@ object_node *ObjectGetBlank(void)
    memset(obj, 0, sizeof(object_node));
    obj->overlays = &obj->normal_overlays;
    obj->animate  = &obj->normal_animate;
+   
+   // Initialize flickerTime to random value for desynchronized OF_FLICKERING animation
+   // This ensures each object starts at a different point in its flicker cycle
+   obj->flickerTime = rand() % 10000;  // Random start time 0-10 seconds
+   
    return obj;
 }
 /*****************************************************************************/
@@ -90,11 +116,20 @@ object_node *ObjectCopy(object_node *obj)
    temp->name_res = obj->name_res;
    temp->icon_res = obj->icon_res;
    temp->flags  = obj->flags;
+   temp->rarity = obj->rarity;
    temp->amount = obj->amount;
    temp->temp_amount = obj->temp_amount;
    temp->translation = obj->translation;
    temp->normal_translation = obj->normal_translation;
    temp->secondtranslation = obj->secondtranslation;
+   
+   // Copy timing fields for animations
+   temp->bounceTime = obj->bounceTime;
+   temp->phaseTime = obj->phaseTime;
+   temp->lightAdjust = obj->lightAdjust;
+   temp->effect = obj->effect;
+   temp->flickerTime = obj->flickerTime;
+   
    memcpy(&temp->normal_animate, &obj->normal_animate, sizeof(Animate));
 
    // Copy overlay structures
@@ -256,9 +291,9 @@ void ObjectStopAnimation(object_node *obj)
 /*****************************************************************************/
 /*
  * RoomObjectSetAnimation:  Set animation for given room object to move animation
- *   if "move" is True, and normal animation otherwise.
+ *   if "move" is true, and normal animation otherwise.
  */
-void RoomObjectSetAnimation(room_contents_node *r, Bool move)
+void RoomObjectSetAnimation(room_contents_node *r, bool move)
 {
   if (move)
   {

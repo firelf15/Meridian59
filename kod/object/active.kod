@@ -26,5 +26,18 @@ messages:
       return ACTIVE;
    }
 
+   UserEntered(who = $)
+   "A User just entered the room."
+   {
+      return;
+   }
+
+   OnRoomRecreated(old_room = $, new_room = $)
+   "Default handler for room recreation events."
+   {
+      % Default: do nothing. Subclasses should override to preserve themselves.
+      return;
+   }
+
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

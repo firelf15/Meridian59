@@ -25,7 +25,7 @@ typedef struct {
 ID    char_to_use;   /* ID # of character player wants to use in game */
 char  name_to_use[MAXNAME];   /* name resource of character player wants to use in game */
 
-char *ad_directory = "ads";   // Subdirectory with advertisement files
+const char *ad_directory = "ads";   // Subdirectory with advertisement files
 
 static HWND hPickCharDialog = NULL;
 extern HWND hMakeCharDialog;
@@ -34,7 +34,7 @@ extern HWND hMakeCharDialog;
 static int animation_controls[] = { IDC_ANIMATE3, IDC_ANIMATE4, };
 static PickCharStruct *info;
 
-static BOOL CALLBACK PickCharDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+static INT_PTR CALLBACK PickCharDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 static void CharPickLButtonDown(HWND hwnd, BOOL fDoubleClick, int x, int y, UINT keyFlags);
 /********************************************************************/
 /* character is id of character to use */
@@ -46,21 +46,21 @@ void GoToGame(ID character)
 /********************************************************************/
 void AbortCharDialogs(void)
 {
-   Bool has_dialog = False;
+   bool has_dialog = false;
 
    if (hPickCharDialog != NULL)
    {
-      has_dialog = True;
+      has_dialog = true;
       EndDialog(hPickCharDialog, IDCANCEL);
    }
    if (hMakeCharDialog != NULL)
    {
-      has_dialog = True;
+      has_dialog = true;
       PropSheet_PressButton(hMakeCharDialog, PSBTN_CANCEL);
       // Hide in case another dialog pops up; for some reason the property sheet lingers awhile
       ShowWindow(hMakeCharDialog, SW_HIDE);
    }
-   exiting = True;
+   exiting = true;
 
    if (!has_dialog)
       PostMessage(cinfo->hMain, BK_MODULEUNLOAD, 0, MODULE_ID);
@@ -110,11 +110,27 @@ void ChooseCharacter(Character *characters, WORD num_characters, char *motd,
    }
 }
 /********************************************************************/
-BOOL CALLBACK PickCharDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+/*
+ * compareCharacters:  Sorting alphabetically with new character slots always at the end.
+ */
+bool compareCharacters(const Character& a, const Character& b) {
+    // Place characters with flags != 1 (new users) at the end
+    if (a.flags != 1 && b.flags == 1) {
+        return true;
+    }
+    if (a.flags == 1 && b.flags != 1) {
+        return false;
+    }
+    // Neither or both characters are new so compare names case-insensitively
+    return _stricmp(a.name, b.name) < 0;
+}
+/********************************************************************/
+INT_PTR CALLBACK PickCharDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    static HWND hList;
    int index, i;
    Character *c;
+   HBITMAP hBitmap;
 
    switch (message)
    {
@@ -123,17 +139,8 @@ BOOL CALLBACK PickCharDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       hList = GetDlgItem(hDlg, IDC_CHARLIST);
       info = (PickCharStruct *) lParam;
 
-      // Insertion sort alphabetically, with new characters at the end
-      for (i = 1; i < info->num_characters; ++i) {
-         int j = i;
-         
-         while (j > 0 &&
-                ((info->characters[j-1].flags == 1 && info->characters[j].flags != 1) ||
-                 strcmpi(info->characters[j-1].name, info->characters[j].name) > 0)) {
-            std::swap(info->characters[j], info->characters[j - 1]);
-            --j;
-         }
-      }
+      // sort alphabetically, with new characters at the end
+      std::sort(info->characters, info->characters + info->num_characters, compareCharacters);
       
       /* Display characters in list */
       for (i=0; i < info->num_characters; i++)
@@ -152,11 +159,16 @@ BOOL CALLBACK PickCharDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPar
       Edit_SetText(GetDlgItem(hDlg, IDC_MOTD), info->motd);  
       
       // Display advertisements
-      for (i=0; i < info->num_ads; i++)
+      for (i = 0; i < info->num_ads; i++)
       {
          char filename[MAX_PATH + FILENAME_MAX];
          sprintf(filename, "%s\\%s", ad_directory, info->ads[i].filename);
-         Animate_Open(GetDlgItem(hDlg, animation_controls[i]), filename);
+
+         // Load the BMP file
+         hBitmap = (HBITMAP)LoadImage(NULL, filename, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+         if (hBitmap != NULL) {
+           SendDlgItemMessage(hDlg, animation_controls[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmap);
+         }
       }
       
       hPickCharDialog = hDlg;

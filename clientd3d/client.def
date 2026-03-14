@@ -26,7 +26,7 @@ EXPORTS
 	ResetUserData
 	WebLaunchBrowser
 	InitMenuPopupHandler
-	GetHBitmapFromResource
+	SafeDialogBoxParam
 
 ; Keyboard handling
 	KeyAddTable
@@ -146,6 +146,8 @@ EXPORTS
 	list_length
 	list_move_to_front
 	list_add_sorted_item
+	list_get_position
+	list_move_item
 
 ; ID lists
 	IDListAdd
@@ -188,6 +190,8 @@ EXPORTS
 	GetRoomObjectById
 	FindVisibleObjectById
 	GetPlayerInfo
+	SetActiveStatGroup
+	GetActiveStatGroup
 
 ; Bitmaps
 	DibOpenFile
@@ -200,7 +204,6 @@ EXPORTS
 ; Sound and music
 	PlayMusicFile
 	PlayMusicRsc
-	PlayMidiRsc
 	PlayWaveFile
 	PlayWaveRsc
 	SoundAbort

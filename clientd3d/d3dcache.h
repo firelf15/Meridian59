@@ -14,71 +14,6 @@
 #define POOL_SIZE				(64)
 #define PACKET_SIZE				(32)
 
-#if 0
-#define CACHE_RESET(_pCache)	\
-do	\
-{	\
-	int	i;	\
-	(_pCache)->xyzBuffer.curIndex = 0;	\
-	for (i = 0; i < TEMP_NUM_STAGES; i++)	\
-		(_pCache)->stBuffer[i].curIndex = 0;	\
-	(_pCache)->bgraBuffer.curIndex = 0;	\
-	(_pCache)->indexBuffer.curIndex = 0;	\
-	(_pCache)->curPacket = 0;	\
-	(_pCache)->numPackets = 0;	\
-	(_pCache)->textureCache.curIndex = 0;	\
-} while (0)
-
-#define CACHE_XYZ_ADD(_pCache, _x, _y, _z)	\
-do	\
-{	\
-	if ((_pCache)->xyzBuffer.curIndex < _pCache->size)	\
-	{	\
-		(_pCache)->xyzBuffer.u.pXYZ->x = _x;	\
-		(_pCache)->xyzBuffer.u.pXYZ->y = _y;	\
-		(_pCache)->xyzBuffer.u.pXYZ->z = _z;	\
-		(_pCache)->xyzBuffer.u.pXYZ++;	\
-		(_pCache)->xyzBuffer.curIndex++;	\
-	}	\
-} while(0)
-
-#define CACHE_BGRA_ADD(_pCache, _b, _g, _r, _a)	\
-do	\
-{	\
-	if ((_pCache)->bgraBuffer.curIndex < _pCache->size)	\
-	{	\
-		(_pCache)->bgraBuffer.u.pBGRA->b = _b;	\
-		(_pCache)->bgraBuffer.u.pBGRA->g = _g;	\
-		(_pCache)->bgraBuffer.u.pBGRA->r = _r;	\
-		(_pCache)->bgraBuffer.u.pBGRA->a = _a;	\
-		(_pCache)->bgraBuffer.u.pBGRA++;	\
-		(_pCache)->bgraBuffer.curIndex++;	\
-	}	\
-} while(0)
-
-#define CACHE_ST_ADD(_pCache, _stage, _s, _t)	\
-do	\
-{	\
-	if ((_pCache)->stBuffer[_stage].curIndex < _pCache->size)	\
-	{	\
-		(_pCache)->stBuffer[_stage].u.pST->s = _s;	\
-		(_pCache)->stBuffer[_stage].u.pST->t = _t;	\
-		(_pCache)->stBuffer[_stage].u.pST++;	\
-		(_pCache)->stBuffer[_stage].curIndex++;	\
-	}	\
-} while(0)
-
-#define CACHE_INDEX_ADD(_pCache, _index)	\
-do	\
-{	\
-	if ((_pCache)->indexBuffer.curIndex < _pCache->size)	\
-	{	\
-		*((_pCache)->indexBuffer.pIndex) = _index;	\
-		(_pCache)->indexBuffer.pIndex++;	\
-		(_pCache)->indexBuffer.curIndex++;	\
-	}	\
-} while(0)
-#else
 #define CACHE_RESET(_pCache) D3DCacheReset(_pCache)
 #define CACHE_LOCK(_pCache)	D3DCacheLock(_pCache)
 
@@ -89,7 +24,6 @@ do	\
 #define CACHE_ST_ADD(_pCache, _stage, _s, _t) D3DCacheSTAdd(_pCache, _stage, _s, _t)
 
 #define CACHE_INDEX_ADD(_pCache, _index) D3DCacheIndexAdd(_pCache, _index)
-#endif
 
 #define CHUNK_XYZ_SET(_pChunk, _index, _x, _y, _z)	\
 do	\
@@ -206,7 +140,7 @@ typedef struct d3d_render_cache_system
 typedef struct d3d_render_chunk_new
 {
 	D3DMATRIX			xForm;
-	Bool				(*pMaterialFctn)(struct d3d_render_chunk_new *pChunk);
+	bool				(*pMaterialFctn)(struct d3d_render_chunk_new *pChunk);
 	d3d_render_cache	*pRenderCache;
 	u_int				flags;
 	u_int				curIndex;
@@ -225,7 +159,7 @@ typedef struct d3d_render_chunk_new
 	BYTE				xLat0;
 	BYTE				xLat1;
 	BYTE				zBias;
-	Bool				isTargeted;
+	bool				isTargeted;
 	Plane				plane;
 	custom_index		indices[(MAX_NPTS - 2) * 3];
 	custom_st			st0[MAX_NPTS];
@@ -237,7 +171,7 @@ typedef struct d3d_render_chunk_new
 // chunks of geometry all using same texture and material
 typedef struct d3d_render_packet_new
 {
-	Bool				(*pMaterialFctn)(struct d3d_render_packet_new *pPacket,
+	bool				(*pMaterialFctn)(struct d3d_render_packet_new *pPacket,
 										d3d_render_cache_system *pCacheSystem);
 	LPDIRECT3DTEXTURE9	pTexture;
 	PDIB				pDib;
@@ -252,7 +186,7 @@ typedef struct d3d_render_packet_new
 } d3d_render_packet_new;
 
 // render packet pool
-typedef Bool (*MaterialFctn)(struct d3d_render_pool_new *pPool);
+typedef bool (*MaterialFctn)(struct d3d_render_pool_new *pPool);
 typedef struct d3d_render_pool_new
 {
 	MaterialFctn		pMaterialFctn;

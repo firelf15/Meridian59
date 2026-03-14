@@ -112,7 +112,7 @@ void AddClass(int id,bof_class_header *class_data,char *fname,char *bof_base,
 {
 	int i,hash_num;
 	class_node *new_node;
-   bof_list_elem *classvar_values, *prop_values;
+	bof_list_elem *classvar_values, *prop_values;
 
 	new_node = (class_node *)AllocateMemory(MALLOC_ID_CLASS,sizeof(class_node));
 	memset(new_node, 0, sizeof(class_node));
@@ -135,7 +135,7 @@ void AddClass(int id,bof_class_header *class_data,char *fname,char *bof_base,
 	for (i=0;i<new_node->num_prop_defaults;i++)
 	{
 		new_node->prop_default[i].id = prop_values[i].id;
-		new_node->prop_default[i].val.int_val = prop_values[i].offset; 
+		new_node->prop_default[i].val.int_val = val32to64(prop_values[i].offset);
 	}
 	new_node->fname = fname;
 	new_node->class_name = NULL;
@@ -165,7 +165,7 @@ void AddClass(int id,bof_class_header *class_data,char *fname,char *bof_base,
 	for (i=0;i<new_node->num_var_defaults;i++)
 	{
 		new_node->var_default[i].id = classvar_values[i].id;
-		new_node->var_default[i].val.int_val = classvar_values[i].offset; 
+		new_node->var_default[i].val.int_val = val32to64(classvar_values[i].offset); 
 	}
 	
 	new_node->vars = NULL;
@@ -326,7 +326,7 @@ void SetOneClassPropertyNames(class_node *c)
 		{
 			// if we have this property name already, don't need to add again
 			int value;
-			if (SIHashFind(c->property_names,prop->name,&value) == False)
+			if (SIHashFind(c->property_names,prop->name,&value) == false)
 				SIHashInsert(c->property_names,prop->name,prop->id);
 			prop = prop->next;
 		}
@@ -352,7 +352,7 @@ class_node * GetClassByID(int class_id)
 class_node * GetClassByName(const char *class_name)
 {
 	int class_id;
-	Bool found;
+	bool found;
 
 	found = SIHashFind(class_name_map,class_name,&class_id);
 	if (found)
@@ -373,7 +373,7 @@ int GetPropertyIDByName(class_node *c,const char *property_name)
 	if (c == NULL)
 		return INVALID_PROPERTY;
 
-	if (SIHashFind(c->property_names,property_name,&id) == True)
+	if (SIHashFind(c->property_names,property_name,&id) == true)
 		return id;
 
 	// check ancestor classes

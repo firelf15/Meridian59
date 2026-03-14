@@ -45,9 +45,6 @@
 
 #define TABLESIZE       1023    /* Size of symbol tables */
 
-typedef int Bool;
-enum {False = 0, True = 1};
-
 enum { C_NUMBER, C_STRING, C_NIL, C_FNAME, C_RESOURCE, C_CLASS, C_MESSAGE, C_OVERRIDE }; 
 
 /* Types of operators */
@@ -79,6 +76,7 @@ typedef struct {
 		    this id is of type message, then this is the class # */
    int source;   /* Whether this id came from the database file (source = DBASE)
 		    or from a source code file (source = COMPILE) */
+   bool assigned;  // true if this variable was assigned to within a message body
 } *id_type, id_struct;
 
 typedef struct {
@@ -200,7 +198,7 @@ typedef struct _class {
    list_type            classvars;
    list_type            properties;
    list_type            messages;
-   int                  is_new;	     /* True iff class needs code to be generated for it */
+   bool                 is_new;	     /* true iff class needs code to be generated for it */
 } *class_type, class_struct;
 
 /* Function parameter types --see function.c */
@@ -291,6 +289,7 @@ void check_continue(void);
 stmt_type make_prop_stmt(void);
 stmt_type make_if_stmt(expr_type, list_type, list_type);
 stmt_type make_assign_stmt(id_type, expr_type);
+id_type make_loop_variable(id_type id);
 stmt_type make_for_stmt(id_type, expr_type, list_type);
 stmt_type make_while_stmt(expr_type, list_type);
 stmt_type make_call(id_type, list_type);
@@ -310,6 +309,7 @@ class_type make_class(class_type c, list_type resources, list_type classvars,
 void enter_loop(void);
 void leave_loop(void);
 void action_error(const char *fmt, ...);
+void action_warning(const char *fmt, ...);
 void simple_error(const char *fmt, ...);
 void simple_warning(const char *fmt, ...);
 void initialize_parser(void);
@@ -323,11 +323,11 @@ int get_statement_line(stmt_type s, int curline);
 
 void codegen(char *current_fname, char *bof_fname);
 void set_kodbase_filename(char *filename);
-int load_kodbase(void);
-int save_kodbase(void);
+bool load_kodbase(void);
+bool save_kodbase(void);
 
 /*************************** Global variables *************************/
-extern int generate_code; 	/* Nonzero if we should generate code */
+extern bool generate_code;      /* true if we should generate code */
 extern SymbolTable st;          /* Compiler's symbol table */
 
 /**************************** Include files ***************************/

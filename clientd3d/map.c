@@ -19,35 +19,39 @@
 
 #include "client.h"
 
-#define MAP_WALL_THICKNESS 1
-#define MAP_PLAYER_THICKNESS 2
-#define MAP_OBJECT_THICKNESS 2
+#define MAP_WALL_THICKNESS 1        // Thickness of wall lines
+#define MAP_SELF_THICKNESS 2        // Stroke thickness of player arrow marker
+#define MAP_PLAYER_THICKNESS 3      // Stroke thickness of other players
+#define MAP_OBJECT_THICKNESS 3      // Stroke thickness of objects
+
+#define MAP_PLAYER_MARKER_SIZE 3    // Size of player arrow marker
 
 #define MAP_WALL_COLOR          PALETTERGB(0, 0, 0)
+#define MAP_SELF_COLOR          PALETTERGB(0, 0, 255)
 #define MAP_PLAYER_COLOR        PALETTERGB(0, 0, 255)
-#define MAP_PLAYER_FRONT_COLOR  PALETTERGB(0, 0, 0)   // Pixel at front of player
 #define MAP_OBJECT_COLOR        PALETTERGB(255, 0, 0)
 
 #define MAP_FRIEND_COLOR        PALETTERGB(0, 255, 0)
 #define MAP_ENEMY_COLOR         PALETTERGB(255, 0, 0)
 #define MAP_GUILDMATE_COLOR     PALETTERGB(255, 255, 0)
 
-#define MAP_OBJECT_RADIUS (FINENESS / 6)  // Radius of circle drawn for an object
+#define MAP_OBJECT_SIZE (FINENESS / 2)  // Size of ellipse drawn for an object
+#define MAP_OBJECT_MAX_SIZE 8           // Maximum size of object ellipses
 
 #define MAP_ZOOM_INCREMENT 0.1       // Amount to change zoom factor per user command
 #define MAP_ZOOM_DELAY     100       // # of milliseconds between zooming in by INCREMENT
-#define MAP_ZOOM_MINZOOM   0.5       // Farthest we can zoom out
-#define MAP_ZOOM_MAXZOOM   8.0       // Closest we can zoom in
+#define MAP_ZOOM_MINZOOM   0.5f      // Farthest we can zoom out
+#define MAP_ZOOM_MAXZOOM   8.0f      // Closest we can zoom in
 
 #define MAP_OBJECT_DISTANCE (7 * FINENESS) // Draw all object closer than this to player
 
 static HBRUSH hObjectBrush, hPlayerBrush, hNullBrush;
-static HPEN hWallPen, hPlayerPen, hObjectPen;
+static HPEN hWallPen, hSelfPen, hPlayerPen, hObjectPen;
 static HPEN hFriendPen, hEnemyPen, hGuildmatePen;
 
 static float zoom;              // Factor to zoom in on map
 
-static BOOL bDrawBackgroundStatic = False;
+static BOOL bDrawBackgroundStatic = false;
 
 // To go from room coordinates (rx, xy) to screen coordinates (sx, sy):
 // sx = xoffset + rx * scale
@@ -74,6 +78,7 @@ static BOOL fMapCacheValid = FALSE;
 static struct map_wall_cache_t *pMapWalls = NULL;
 static float mapCacheScale = 0.0;
 static int mapNumCacheWalls = 0;
+static constexpr float MAX_ANNOTATION_TEXT_ZOOM = 5; // Unit-less number which helps define when we stop displaying annotation text
 
 /* local function prototypes */
 static void MapDrawMiniMapWalls(HDC hdc, int x, int y, room_type *room);
@@ -81,7 +86,7 @@ static void MapDrawWall(HDC hdc, int x, int y, float scale, WallData *wall);
 static void MapDrawPlayer(HDC hdc, int x, int y, float scale);
 static void MapDrawObjects(HDC hdc, list_type objects, int x, int y, float scale);
 static void MapDrawWalls(HDC hdc, int x, int y, float scale, room_type *room);
-static void MapDrawAnnotations( HDC hdc, MapAnnotation *annotations, int x, int y, float scaleToUse, Bool bMiniMap );
+static void MapDrawAnnotations(HDC hdc, MapAnnotation *annotations, int x, int y, float scaleToUse, bool bMiniMap, bool bDrawText);
 
 void MapSetWallPositions(room_type *room, float scale, int numWalls)
 {
@@ -127,6 +132,7 @@ void MapInitialize(void)
    logBrush.lbStyle = BS_HOLLOW;
 
    hWallPen = CreatePen(PS_SOLID, MAP_WALL_THICKNESS, MAP_WALL_COLOR);
+   hSelfPen = CreatePen(PS_SOLID, MAP_SELF_THICKNESS, MAP_SELF_COLOR);
    hPlayerPen = CreatePen(PS_SOLID, MAP_PLAYER_THICKNESS, MAP_PLAYER_COLOR);
    hObjectPen = CreatePen(PS_SOLID, MAP_OBJECT_THICKNESS, MAP_OBJECT_COLOR);
    hFriendPen = CreatePen(PS_SOLID, MAP_PLAYER_THICKNESS, MAP_FRIEND_COLOR);
@@ -179,7 +185,7 @@ void MapClose(void)
  *   bits points to the bitmap in hdc.
  *   width gives the width of the bitmap in hdc.
  */
-void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool bMiniMap )
+void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, bool bMiniMap )
 {
    RECT rect;
    AREA view;
@@ -194,7 +200,7 @@ void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool 
       if( bDrawBackgroundStatic )
       {
 	 DrawWindowBackgroundMem(&map_bkgnd, bits, &rect, width, view.x, view.y);
-	 bDrawBackgroundStatic = False;
+	 bDrawBackgroundStatic = false;
       }
    else
       DrawWindowBackgroundMem(&map_bkgnd, bits, &rect, width, (int)( player.x * scaleMiniMap ), (int)( player.y * scaleMiniMap ) );
@@ -209,7 +215,7 @@ void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool 
 	 if( !bMiniMap )
 	 {
 	    scale = ((float) area->cx) / room->width;
-	    scale = min(scale, ((float) area->cy) / room->height);
+	    scale = std::min(scale, ((float) area->cy) / room->height);
 	    scale *= zoom;
 
 	    // Center map on player
@@ -218,7 +224,7 @@ void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool 
 
 	    MapDrawWalls(hdc, xoffset, yoffset, scale, room);
        if (config.map_annotations)
-          MapDrawAnnotations(hdc, room->annotations, xoffset, yoffset, scale, FALSE );
+          MapDrawAnnotations(hdc, room->annotations, xoffset, yoffset, scale, false, true);
 	    MapDrawObjects(hdc, room->contents, xoffset, yoffset, scale);
 	    MapDrawPlayer(hdc, xoffset, yoffset, scale);
 	 }
@@ -226,7 +232,7 @@ void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool 
 	 {
 	    float cacheDiff;
 	    scaleMiniMap = ((float) area->cx) / room->width;
-	    scaleMiniMap = min( scaleMiniMap, ((float) area->cy) / room->height );
+	    scaleMiniMap = std::min( scaleMiniMap, ((float) area->cy) / room->height );
 	    scaleMiniMap *= zoom;
 
 	    cacheDiff = scaleMiniMap - mapCacheScale;
@@ -254,7 +260,26 @@ void MapDraw( HDC hdc, BYTE *bits, AREA *area, room_type *room, int width, Bool 
 	    else
 	       MapDrawWalls(hdc, xoffsetMiniMap, yoffsetMiniMap, scaleMiniMap, room);
        if (config.map_annotations)
-          MapDrawAnnotations( hdc, room->annotations, xoffsetMiniMap, yoffsetMiniMap, scaleMiniMap, TRUE );
+       {
+          bool drawText = true;
+          if (config.map_text_zoom_limit == 0)
+          {
+             // Set to 0, keep them always off
+             drawText = false;
+          }
+          else if (config.map_text_zoom_limit == CONFIG_MAX_TEXT_ZOOM_LIMIT)
+          {
+             // Set to max, keep them always on
+             drawText = true;
+          }
+          else
+          {
+             // Set to something in between, calculate based on zoom level
+             drawText = scaleMiniMap > (1.0f / ((float)config.map_text_zoom_limit * MAX_ANNOTATION_TEXT_ZOOM));
+          }
+          
+          MapDrawAnnotations(hdc, room->annotations, xoffsetMiniMap, yoffsetMiniMap, scaleMiniMap, true, drawText);
+       }
 	    MapDrawObjects(hdc, room->contents, xoffsetMiniMap, yoffsetMiniMap, scaleMiniMap);
 	    MapDrawPlayer(hdc, xoffsetMiniMap, yoffsetMiniMap, scaleMiniMap);
 	 }
@@ -378,7 +403,8 @@ void MapDrawObjects(HDC hdc, list_type objects, int x, int y, float scale)
    int dx, dy;
    static int mapObjectDistanceShiftAndSquare = (MAP_OBJECT_DISTANCE >> 4) * (MAP_OBJECT_DISTANCE >> 4);
 
-   radius = max(1, MAP_OBJECT_RADIUS * scale);
+   // Scale radius, clamping between a minimum of 1 and the defined maximum
+   radius = std::min(std::max(1.0f, (MAP_OBJECT_SIZE * scale)), (float)MAP_OBJECT_MAX_SIZE) / 2;
 
    for (l = objects; l != NULL; l = l->next)
    {
@@ -475,11 +501,11 @@ void MapDrawPlayer(HDC hdc, int x, int y, float scale)
    RECT rc;
    int radius = player.width / 2;
 
-   hOldPen = (HPEN) SelectObject(hdc, hPlayerPen);
+   hOldPen = (HPEN) SelectObject(hdc, hSelfPen);
 
-   FindOffsets(player.width * 3 / 4, player.angle, &dx, &dy);
-   FindOffsets(player.width / 4, player.angle+NUMDEGREES/4, &ldx, &ldy);
-   FindOffsets(player.width / 4, player.angle-NUMDEGREES/4, &rdx, &rdy);
+   FindOffsets(MAP_PLAYER_MARKER_SIZE * 3, player.angle, &dx, &dy);
+   FindOffsets(MAP_PLAYER_MARKER_SIZE, player.angle+NUMDEGREES/4, &ldx, &ldy);
+   FindOffsets(MAP_PLAYER_MARKER_SIZE, player.angle-NUMDEGREES/4, &rdx, &rdy);
 
    if (config.showMapBlocking)
    {
@@ -491,22 +517,15 @@ void MapDrawPlayer(HDC hdc, int x, int y, float scale)
       Ellipse(hdc, rc.left, rc.top, rc.right+1, rc.bottom+1);
       SelectObject(hdc, hOldBrush);
    }
+   
    x += (int) (player.x * scale);
    y += (int) (player.y * scale);
-   dx = (int) (dx * scale);
-   dy = (int) (dy * scale);
-   ldx = (int) (ldx * scale);
-   ldy = (int) (ldy * scale);
-   rdx = (int) (rdx * scale);
-   rdy = (int) (rdy * scale);
+
    MoveToEx(hdc, x - dx, y - dy, NULL);
    LineTo(hdc, x + dx, y + dy);
    LineTo(hdc, x + ldx, y + ldy);
    LineTo(hdc, x + rdx, y + rdy);
    LineTo(hdc, x + dx, y + dy);
-
-   // Indicate front of player
-   //SetPixel(hdc, x + dx, y + dy, MAP_PLAYER_FRONT_COLOR);
 
    SelectObject(hdc, hOldPen);
 }
@@ -515,34 +534,87 @@ void MapDrawPlayer(HDC hdc, int x, int y, float scale)
  * MapDrawAnnotations:  Draw spots identifying map annotations.
  *   (x, y) is the upper-left corner of the drawing area on hdc.
  */
-void MapDrawAnnotations( HDC hdc, MapAnnotation *annotations, int x, int y, float scaleToUse, Bool bMiniMap )
+void MapDrawAnnotations(HDC hdc, MapAnnotation *annotations, int x, int y, float scaleToUse, bool bMiniMap, bool bDrawText)
 {
-	int i, radius, new_x, new_y;
+   int i, adjusted_size, new_x, new_y;
+   HFONT hOldFont;
+   int padding = 2;
 
-	MapMoveAnnotations( annotations, x, y, scaleToUse, bMiniMap );
+   // Scale annotation, capping it between the minimum and maximum limits
+   adjusted_size = std::min((int)(MAP_ANNOTATION_SIZE * scaleToUse), MAP_ANNOTATION_MAX_SIZE);
+   adjusted_size = std::max(MAP_ANNOTATION_MIN_SIZE, adjusted_size);
 
-	for (i=0; i < MAX_ANNOTATIONS; i++)
-	{
-		if (annotations[i].text[0] == 0)
-			continue;
+   MapMoveAnnotations(annotations, x, y, scaleToUse, bMiniMap, adjusted_size);
 
-		new_x = x + (int) (annotations[i].x * scaleToUse);
-		new_y =	y + (int) (annotations[i].y * scaleToUse);
+   // Draw Map Annotation Icons
+   for (i = 0; i < MAX_ANNOTATIONS; i++)
+   {
+      if (annotations[i].text[0] == 0)
+         continue;
 
-		radius = max(MAP_ANNOTATION_MIN_SIZE / 2, (int) (MAP_ANNOTATION_SIZE * scaleToUse / 2));
+      new_x = x + (int) (annotations[i].x * scaleToUse);
+      new_y = y + (int) (annotations[i].y * scaleToUse);
 
-		if (annotation.bits != NULL)
-		{
-			OffscreenWindowBackground(NULL, new_x - radius, new_y - radius, 
-									    annotation.width, annotation.height);
-			OffscreenStretchBlt(hdc, (int) (new_x - radius), (int) (new_y - radius), 
-								  2 * radius, 2 * radius,
-								  annotation.bits, 0, 0, 
-								  annotation.width, annotation.height,
-								  OBB_COPY | OBB_FLIP);
-		}
-	}
-} 
+      if (annotation.bits != NULL)
+      {
+         OffscreenWindowBackground(NULL, new_x - (adjusted_size / 2), new_y - (adjusted_size / 2), annotation.width,
+                                   annotation.height);
+         OffscreenStretchBlt(hdc, (int) (new_x - (adjusted_size / 2)), (int) (new_y - (adjusted_size / 2)),
+                             adjusted_size, adjusted_size, annotation.bits, 0, 0, annotation.width, annotation.height,
+                             OBB_COPY | OBB_FLIP);
+      }
+   }
+
+   // Draw Map Annotation Text
+   if (bDrawText)
+   {
+      // Select new font
+      hOldFont = (HFONT) SelectObject(hdc, GetFont(FONT_MAP_ANNOTATIONS));
+      SetBkMode(hdc, TRANSPARENT);
+
+      for (i = 0; i < MAX_ANNOTATIONS; i++)
+      {
+         char *annotation_text = annotations[i].text;
+         int annotation_text_length = (int) strlen(annotation_text);
+         if (annotation_text_length == 0)
+            continue;
+
+         new_x = x + (int) (annotations[i].x * scaleToUse);
+         new_y = y + (int) (annotations[i].y * scaleToUse);
+
+         if (annotation.bits != NULL)
+         {
+            RECT r;
+            SIZE textSize;
+
+            // Determine the size of the text, and set up RECT for drawing
+            GetTextExtentPoint32(hdc, annotation_text, annotation_text_length, &textSize);
+
+            r.left = new_x - (textSize.cx / 2) - padding;
+            r.right = new_x + (textSize.cx / 2) + padding;
+            r.top = new_y + (adjusted_size / 2) - padding;
+            r.bottom = r.top + textSize.cy + padding;
+
+            // Draw 4 times to create a shadow effect
+            SetTextColor(hdc, GetColor(COLOR_BGD));
+            for (int i = 0; i < 4; ++i)
+            {
+               RECT bgRect;
+               CopyRect(&bgRect, &r);
+               OffsetRect(&bgRect, (i % 2) ? 1 : -1, (i >= 2) ? 1 : -1);
+               DrawText(hdc, annotation_text, annotation_text_length, &bgRect, DT_CENTER);
+            }
+
+            // Draw main text
+            SetTextColor(hdc, GetColor(COLOR_FGD));
+            DrawText(hdc, annotation_text, annotation_text_length, &r, DT_CENTER);
+         }
+      }
+
+      // Reset font
+      SelectObject(hdc, hOldFont);
+   }
+}
 /*****************************************************************************/
 /*
  * MapEnterRoom:  Mark all walls as unseen when user enters a new room, and load
@@ -553,14 +625,17 @@ void MapEnterRoom(room_type *room)
    int i;
 
    for (i = 0; i < room->num_walls; i++)
-      room->walls[i].seen = False;
+      room->walls[i].seen = false;
 
    memset(room->annotations, 0, MAX_ANNOTATIONS * sizeof(MapAnnotation));
-   room->annotations_changed = False;
+   room->annotations_changed = false;
    room->annotations_offset = 0;
 
    // Load map from file
-   MapFileLoadRoom(room);
+   if (!MapFileLoadRoom(room))
+   {
+      debug(("MapEnterRoom:  Couldn't load map for room!\n"));
+   }
 
    fMapCacheValid = FALSE;
 }
@@ -570,7 +645,10 @@ void MapEnterRoom(room_type *room)
  */
 void MapExitRoom(room_type *room)
 {
-   MapFileSaveRoom(room);
+   if (!MapFileSaveRoom(room))
+   {
+      debug(("MapExitRoom:  Couldn't save map for room!\n"));
+   }
    if (pMapWalls)
       SafeFree(pMapWalls);
    pMapWalls = NULL;
@@ -595,18 +673,18 @@ void MapZoom(int direction)
 
    now = timeGetTime();
    dt = now - last_time;
-   if (dt < MAP_ZOOM_DELAY && config.animate)
+   if (dt < MAP_ZOOM_DELAY)
       increment = increment * dt / MAP_ZOOM_DELAY;
    last_time = now;
 
    zoom += increment;
-   zoom = (float) max(zoom, MAP_ZOOM_MINZOOM);
-   zoom = (float) min(zoom, MAP_ZOOM_MAXZOOM);
+   zoom = std::max(zoom, MAP_ZOOM_MINZOOM);
+   zoom = std::min(zoom, MAP_ZOOM_MAXZOOM);
 
    fMapCacheValid = FALSE;
 
    //	Set flag that keeps background of the map fixed for the next draw.
-   bDrawBackgroundStatic = True;
+   bDrawBackgroundStatic = true;
 
    RedrawAll();
 }
@@ -615,7 +693,7 @@ void MapZoom(int direction)
  * MapScreenToRoom:  Given (x, y) in pixels measured from the origin of the graphics
  *   window, modify (x, y) to give the room coordinates on this location on the map.
  */
-void MapScreenToRoom( int *x, int *y, Bool bMiniMap )
+void MapScreenToRoom( int *x, int *y, bool bMiniMap )
 {
    if( !bMiniMap )
    {
@@ -634,10 +712,10 @@ void MapScreenToRoom( int *x, int *y, Bool bMiniMap )
 }
 /*****************************************************************************/
 /*
- * MapShowAllWalls:  Set all walls in current room to seen (show = True)
- *   or hidden (show = False).
+ * MapShowAllWalls:  Set all walls in current room to seen (show = true)
+ *   or hidden (show = false).
  */
-void MapShowAllWalls(room_type *room, Bool show)
+void MapShowAllWalls(room_type *room, bool show)
 {
    WallData *wall;
    int i;
@@ -654,10 +732,10 @@ void MapShowAllWalls(room_type *room, Bool show)
 	 continue;
 
       if (show && !(sidedef->flags & WF_MAP_NEVER))
-	wall->seen = True;
+	wall->seen = true;
 
       if (!show && !(sidedef->flags & WF_MAP_ALWAYS))
-	wall->seen = False;
+	wall->seen = false;
      }
 }
 
@@ -708,17 +786,17 @@ static void ComputeMaxWallBoundaries(RECT *prc)
       WallData *wall = &current_room.walls[w];
       if (w == 0)
       {
-	 prc->left = min(wall->x0,wall->x1);
-	 prc->right = max(wall->x0,wall->x1);
-	 prc->top = min(wall->y0,wall->y1);
-	 prc->bottom = max(wall->y0,wall->y1);
+	 prc->left = (LONG)std::min(wall->x0,wall->x1);
+	 prc->right = (LONG)std::max(wall->x0,wall->x1);
+	 prc->top = (LONG)std::min(wall->y0,wall->y1);
+	 prc->bottom = (LONG)std::max(wall->y0,wall->y1);
       }
       else
       {
-	 prc->left = min(prc->left,min(wall->x0,wall->x1));
-	 prc->right = max(prc->right,max(wall->x0,wall->x1));
-	 prc->top = min(prc->top,min(wall->y0,wall->y1));
-	 prc->bottom = max(prc->bottom,max(wall->y0,wall->y1));
+	 prc->left = std::min(prc->left,(LONG)std::min(wall->x0,wall->x1));
+	 prc->right = std::max(prc->right,(LONG)std::max(wall->x0,wall->x1));
+	 prc->top = std::min(prc->top,(LONG)std::min(wall->y0,wall->y1));
+	 prc->bottom = std::max(prc->bottom,(LONG)std::max(wall->y0,wall->y1));
       }
    }
    prc->left -= 10;
@@ -777,7 +855,7 @@ static void PrintMapAnnotations(HDC hdc)
       buffer[0] += i; // [A] .. [B] .. [C] .. ...
       SelectObject(hdc,hPrintLabel);
       GetTextArea(hdc,buffer,&size);
-      TextOut(hdc,pt.x - size.cx/2, pt.y - size.cy/2,buffer,strlen(buffer));
+      TextOut(hdc,pt.x - size.cx/2, pt.y - size.cy/2,buffer, (int)strlen(buffer));
       SetRect(&rcText,0,0,size.cx + iMapLabelSpace*2, size.cy + iMapLabelSpace);
       OffsetRect(&rcText,pt.x - size.cx/2 - iMapLabelSpace, pt.y - size.cy/2 - iMapLabelSpace);
       DrawRect(hdc,&rcText,TRUE);
@@ -807,7 +885,7 @@ static void PrintAnnotations(HDC hdc)
 	 RequestGamePing();
       }
       OffsetRect(&rcText,cp.x,cp.y);
-      TextOut(hdc,cp.x+iMapLabelSpace, cp.y+iMapLabelSpace,buffer,strlen(buffer));
+      TextOut(hdc,cp.x+iMapLabelSpace, cp.y+iMapLabelSpace,buffer, (int)strlen(buffer));
       DrawRect(hdc,&rcText,TRUE);
       cp.x += size.cx + iMapLabelSpace*2 + GetDeviceCaps(hdc, LOGPIXELSX) / 16;
       cp.y += iMapLabelSpace;
@@ -887,7 +965,7 @@ void PrintMap(BOOL useDefault)
       doc.lpszDocName = buffer;
 
       StartDoc(pageSetup.hDC,&doc);
-      wsprintf(buffer,"Map of %s",LookupNameRsc(player.room_name_res));
+      snprintf(buffer, sizeof(buffer), "Map of %s",LookupNameRsc(player.room_name_res));
 
       GetClipBox(pageSetup.hDC,&rcPage);
       rcPage.top += GetDeviceCaps(pageSetup.hDC, LOGPIXELSY) / 2;

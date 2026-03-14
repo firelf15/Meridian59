@@ -11,7 +11,7 @@
 
 #include "client.h"
 
-#define PAGE_BREAK_CHAR '¶'	  /* For multi-page descriptions */
+static const unsigned char PAGE_BREAK_CHAR = 0xB6;	  /* U+00B6 PILCROW SIGN For multi-page descriptions */
 #define MAX_PAGE_DESCRIPTION_TEXT MAXMESSAGE
 
 static HWND hDescDialog = NULL;   /* Non-null if Description dialog is up */
@@ -31,6 +31,7 @@ static ChildPlacement desc_controls[] = {
 	{ IDC_USE,         RDI_BOTTOM },
 	{ IDC_UNUSE,       RDI_BOTTOM },
 	{ IDC_INSIDE,      RDI_BOTTOM },
+	{ IDC_APPLY,       RDI_BOTTOM },
 	{ IDC_ACTIVATE,    RDI_BOTTOM },
 	{ IDC_URLLABEL,    RDI_BOTTOM },
 	{ IDC_URLBUTTON,   RDI_BOTTOM },
@@ -96,7 +97,6 @@ static int SetFontToFitText(DescDialogStruct *info, HWND hwnd, int fontNum, cons
 static void GetPageText(char *buffer, DescDialogStruct *info)
 {
 	int page, len;
-	int lenDescription;
 	char *pFullText;
 	char *pStart;
 	char *pEnd;
@@ -109,7 +109,7 @@ static void GetPageText(char *buffer, DescDialogStruct *info)
 	if (!info || !info->description)
 		return;
 	
-	lenDescription = strlen(info->description);
+	size_t lenDescription = strlen(info->description);
 	pFullText = info->description;
 	pStart = info->description;
 	pEnd = strchr(pStart,PAGE_BREAK_CHAR);
@@ -149,8 +149,8 @@ static void ResizeEditToFitText(HWND hEdit, HFONT hFont)
 	yincrease = GetFontHeight(hFont) * num_lines - (edit_rect.bottom - edit_rect.top);
 	
 	GetWindowRect(hParent, &dlg_rect);
-	yincrease = min(yincrease, GetSystemMetrics(SM_CYSCREEN) - dlg_rect.bottom + dlg_rect.top);
-	yincrease = max(0, yincrease);
+	yincrease = std::min(yincrease, (int)(GetSystemMetrics(SM_CYSCREEN) - dlg_rect.bottom + dlg_rect.top));
+	yincrease = std::max(0, yincrease);
 	MoveWindow(hParent, dlg_rect.left, dlg_rect.top, dlg_rect.right - dlg_rect.left, 
 		dlg_rect.bottom - dlg_rect.top + yincrease, FALSE);
 }
@@ -194,11 +194,11 @@ static void SetLookPageButtons(HWND hDlg, DescDialogStruct *info)
 * DescDialogProc:  Dialog procedure for dialog containing an
 *   item's long description.
 */
-BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK DescDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	DescDialogStruct *info;
 	static HWND hwndBitmap;
-	static Bool changed;   // True when player has changed description
+	static bool changed;   // true when player has changed description
 	HWND hEdit, hwndOK, hURL, hFixed;
 	HDC hdc;
 	HFONT hFont;
@@ -209,14 +209,14 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 	char descriptionBuffer[MAX_PAGE_DESCRIPTION_TEXT+1];
 	int height;
 	
-	info = (DescDialogStruct *) GetWindowLong(hDlg, DWL_USER);
+	info = (DescDialogStruct *) GetWindowLongPtr(hDlg, DWLP_USER);
 	
 	switch (message)
 	{
 	case WM_INITDIALOG:
 		info = (DescDialogStruct *) lParam;
 		/* Store structure in dialog box's extra bytes */
-		SetWindowLong(hDlg, DWL_USER, (long) info);
+		SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR) info);
 		
 		hwndBitmap = GetDlgItem(hDlg, IDC_DESCBITMAP);
 		hFixed = GetDlgItem(hDlg, IDC_DESCFIXED);
@@ -225,10 +225,10 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 		
 		// Item Name.
 		height = SetFontToFitText(info,GetDlgItem(hDlg, IDC_DESCNAME), 
-			(int)FONT_TITLES, info->name);
-		SetDlgItemText(hDlg, IDC_DESCNAME, info->name);
+			(int)FONT_TITLES, info->name.c_str());
+		SetDlgItemText(hDlg, IDC_DESCNAME, info->name.c_str());
 		hdc = GetDC(hDlg);
-		SetTextColor(hdc,GetPlayerNameColor(info->obj->flags,info->name));
+		SetTextColor(hdc,GetPlayerNameColor(info->obj->flags,info->name.c_str()));
 		ReleaseDC(hDlg,hdc);
 		
 		// Item Description.
@@ -340,26 +340,9 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 			DestroyWindow(GetDlgItem(hDlg, IDC_APPLY));
 		
 		SetLookPageButtons(hDlg, info);
-#if 0
-		if (info->numPages < 2)
-		{
-			HWND hwnd = GetDlgItem(hDlg,IDC_NEXT);
-			if (hwnd)
-				DestroyWindow(GetDlgItem(hDlg, IDC_NEXT));
-			hwnd = GetDlgItem(hDlg,IDC_PREV);
-			if (hwnd)
-				DestroyWindow(GetDlgItem(hDlg, IDC_PREV));
-		}
-		else 
-		{
-			HWND hwnd = GetDlgItem(hDlg,IDC_PREV);
-			if (hwnd)
-				EnableWindow(hwnd,FALSE);
-		}
-#endif
 		SetFocus(hwndOK);
 		hDescDialog = hDlg;
-		changed = False;
+		changed = false;
 		return FALSE;
 		
    case WM_PAINT:
@@ -401,10 +384,10 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 		   SetBkMode(lpdis->hDC, TRANSPARENT);
 		   str = LookupNameRsc(info->obj->name_res);
 		   SetTextColor(lpdis->hDC, NAME_COLOR_NORMAL_BG);
-		   DrawText(lpdis->hDC, str, strlen(str), &lpdis->rcItem, DT_LEFT | DT_VCENTER | DT_NOPREFIX);
+		   DrawText(lpdis->hDC, str, (int) strlen(str), &lpdis->rcItem, DT_LEFT | DT_VCENTER | DT_NOPREFIX);
 		   OffsetRect(&lpdis->rcItem, -1, -1);
-		   SetTextColor(lpdis->hDC, GetPlayerNameColor(info->obj->flags,info->name));
-		   DrawText(lpdis->hDC, str, strlen(str), &lpdis->rcItem, DT_LEFT | DT_VCENTER | DT_NOPREFIX);
+		   SetTextColor(lpdis->hDC, GetPlayerNameColor(info->obj->flags,info->name.c_str()));
+		   DrawText(lpdis->hDC, str, (int) strlen(str), &lpdis->rcItem, DT_LEFT | DT_VCENTER | DT_NOPREFIX);
 		   
 		   break;
        }
@@ -419,10 +402,6 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 			   GetPageText(descriptionBuffer,info);
 			   SetLookPageButtons(hDlg, info);
 			   Edit_SetText(GetDlgItem(hDlg, IDC_DESCBOX), descriptionBuffer);
-#if 0
-			   EnableWindow(GetDlgItem(hDlg,IDC_PREV),info->currentPage > 0);
-			   EnableWindow(GetDlgItem(hDlg,IDC_NEXT),info->currentPage < info->numPages-1);
-#endif
 			   return TRUE;
 			   
 		   case IDC_NEXT:
@@ -431,10 +410,6 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 			   GetPageText(descriptionBuffer,info);
 			   Edit_SetText(GetDlgItem(hDlg, IDC_DESCBOX), descriptionBuffer);
 			   SetLookPageButtons(hDlg, info);
-#if 0
-			   EnableWindow(GetDlgItem(hDlg,IDC_PREV),info->currentPage > 0);
-			   EnableWindow(GetDlgItem(hDlg,IDC_NEXT),info->currentPage < info->numPages-1);
-#endif
 			   return TRUE;
 			   
 		   case IDC_GET:
@@ -445,7 +420,11 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 		   case IDC_DROP:
 			   // Drop all of number items
 			   info->obj->temp_amount = info->obj->amount;
-			   RequestDrop(info->obj);
+			   {
+			      list_type drop_list = list_add_item(NULL, info->obj);
+			      RequestDrop(drop_list);
+			      list_delete(drop_list);
+			   }
 			   EndDialog(hDlg, 0);
 			   return TRUE;
 			   
@@ -480,7 +459,7 @@ BOOL CALLBACK DescDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
 		   case IDC_DESCBOX:
 			   if (GET_WM_COMMAND_CMD(wParam, lParam) != EN_CHANGE)
 				   break;
-			   changed = True;
+			   changed = true;
 			   return TRUE;
 			   
 		   case IDC_URLBUTTON:
@@ -538,19 +517,19 @@ void AnimateDescription(int dt)
 	if (hDescDialog == NULL)
 		return;
 	
-	info = (DescDialogStruct *) GetWindowLong(hDescDialog, DWL_USER);
+	info = (DescDialogStruct *) GetWindowLongPtr(hDescDialog, DWLP_USER);
 	obj = info->obj;
 	
 	old_group = obj->animate->group;
 	
-	if (AnimateObject(obj, dt) == True)
+	if (AnimateObject(obj, dt) == true)
 		SendMessage(hDescDialog, BK_ANIMATE, 0, 0);
 }
 /*****************************************************************************/
 /*
 * AmountDialogProc:  Dialog procedure for dialog asking user for a number.
 */
-BOOL CALLBACK AmountDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK AmountDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static AmountDialogStruct *info;
 	static HWND hEdit;
@@ -585,7 +564,7 @@ BOOL CALLBACK AmountDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam
 		MoveWindow(hDlg, dlg_rect.left, dlg_rect.top, dlg_rect.right - dlg_rect.left, 
 			dlg_rect.bottom - dlg_rect.top, FALSE);
 		
-		sprintf(buf, "%u", info->amount);
+		snprintf(buf, sizeof(buf), "%u", info->amount);
 		Edit_SetText(hEdit, buf);
 		Edit_LimitText(hEdit, MAXAMOUNT);
 		
@@ -659,7 +638,7 @@ void SetDescParams(HWND hParent, int flags)
 *   extra_string and url are used only in player descriptions.
 */
 void DisplayDescription(object_node *obj, BYTE flags, char *description, 
-                        char *extra_string, char *url)
+                        char *fixed_string, char *url, item_rarity_grade rarity)
 {
 	DescDialogStruct info;
 	int template_id;
@@ -673,22 +652,75 @@ void DisplayDescription(object_node *obj, BYTE flags, char *description,
 	ZeroMemory(&info,sizeof(info));
 	info.obj          = obj;
 	info.flags        = flags;
-	info.name         = LookupNameRsc(obj->name_res);
+    char* nameCStr    = LookupNameRsc(obj->name_res);
+    info.name         = std::string(nameCStr);
 	info.description  = description;
-	info.fixed_string = extra_string;
+	info.fixed_string = fixed_string;
 	info.url          = url;
+	info.rarity       = obj->rarity;
 	
+	std::string raritySuffix = GetRaritySuffix(info.rarity);
+
+	if (!raritySuffix.empty())
+	{
+        info.name += " (" + raritySuffix + ")";
+	}
+
 	// Different dialog for players
 	template_id = (obj->flags & OF_PLAYER) ? IDD_DESCPLAYER : IDD_DESC;
 	
-	DialogBoxParam(hInst, MAKEINTRESOURCE(template_id), hDescParent,
-                 DescDialogProc, (LPARAM) &info);
+	SafeDialogBoxParam(hInst, MAKEINTRESOURCE(template_id), hDescParent,
+                 DescDialogProc, reinterpret_cast<LPARAM>(&info));
 	
-	TooltipReset();
 	SetDescParams(NULL, DESC_NONE);
 }
+/************************************************************************/
+/*
+* GetRaritySuffix:  Provide a rarity suffix based on the given rarity type.
+*/
+std::string GetRaritySuffix(item_rarity_grade rarity)
+{
+	int stringID;
 
-/*****************************************************************************/
+	switch(rarity)
+	{
+        case ITEM_RARITY_GRADE_NORMAL:
+            return "";
+        case ITEM_RARITY_GRADE_UNCOMMON:
+            stringID = IDS_RARITY_GRADE_UNCOMMON;
+			break;
+        case ITEM_RARITY_GRADE_RARE:
+            stringID = IDS_RARITY_GRADE_RARE;
+			break;
+        case ITEM_RARITY_GRADE_LEGENDARY:
+            stringID = IDS_RARITY_GRADE_LEGENDARY;
+			break;
+        case ITEM_RARITY_GRADE_UNIDENTIFIED:
+            stringID = IDS_RARITY_GRADE_UNIDENTIFIED;
+			break;
+        case ITEM_RARITY_GRADE_CURSED:
+            stringID = IDS_RARITY_GRADE_CURSED;
+			break;
+		default:
+			debug(("Unknown rarity grade %d\n", rarity));
+            return ""; // Handle unknown rarity gracefully (no suffix)
+	}
+
+	return GetString(hInst, stringID);
+}
+/************************************************************************/
+/*
+* SetDialogFixedString:  Update the fixed string for the dialog that appears
+* between the main name and description.
+*/
+void SetDialogFixedString(char* fixed_string)
+{
+	if (hDescDialog != NULL)
+	{
+		SetDlgItemText(hDescDialog, IDC_DESCFIXED, fixed_string);
+		InvalidateRect(GetDlgItem(hDescDialog, IDC_DESCFIXED), NULL, TRUE);
+	}
+}/************************************************************************/
 /*
 * AbortGameDialogs:  Close modal dialogs, for example when we lose the server
 *   connection.
@@ -704,4 +736,14 @@ void AbortGameDialogs(void)
 	AbortAnnotateDialog();
 	AbortPasswordDialog();
 	AbortPreferencesDialog();
+}
+/************************************************************************/
+/*
+* SafeDialogBoxParam:  A wrapper for DialogBoxParam that resets tooltips when a dialog is opened.
+*   This is necessary because tooltips are not reset when a dialog is opened.
+*/
+INT_PTR SafeDialogBoxParam(HINSTANCE hInstance, LPCSTR lpTemplate, HWND hWndParent, DLGPROC lpDialogFunc, LPARAM dwInitParam)
+{
+    TooltipReset();
+    return DialogBoxParam(hInstance, lpTemplate, hWndParent, lpDialogFunc, dwInitParam);
 }

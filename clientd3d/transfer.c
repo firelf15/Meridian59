@@ -25,9 +25,9 @@ static char *buf;       // Buffer for reading data
 // Semaphore to make transfer thread wait for processing of previous file to finish
 static HANDLE hSemaphore;   
 
-static Bool aborted;    // True when user has aborted transfer
+static bool aborted;    // true when user has aborted transfer
 
-static BOOL CALLBACK ErrorDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+static INT_PTR CALLBACK ErrorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 static void __cdecl DownloadError(HWND hParent, char *fmt, ...);
 static void TransferCloseHandles(void);
 /************************************************************************/
@@ -58,7 +58,7 @@ void TransferClose(void)
  */
 void __cdecl TransferStart(void *download_info)
 {
-   Bool done;
+   bool done;
    char filename[MAX_PATH + FILENAME_MAX];
    char local_filename[MAX_PATH + 1];  // Local filename of current downloaded file
    int i;
@@ -71,7 +71,7 @@ void __cdecl TransferStart(void *download_info)
    DWORD index = 0;
    DownloadInfo *info = (DownloadInfo *) download_info;
 
-   aborted = False;
+   aborted = false;
    hConnection = NULL;
    hSession = NULL;
    hFile = NULL;
@@ -108,13 +108,6 @@ void __cdecl TransferStart(void *download_info)
          return;
       }
       
-     // Skip non-guest files if we're a guest
-     if (config.guest && !(info->files[i].flags & DF_GUEST))
-     {
-       PostMessage(info->hPostWnd, BK_FILEDONE, 0, i);
-       continue;
-     }
-     
      // If not supposed to transfer file, inform main thread
      if (DownloadCommand(info->files[i].flags) != DF_RETRIEVE)
      {
@@ -131,7 +124,7 @@ void __cdecl TransferStart(void *download_info)
        continue;
      }
      
-      sprintf(filename, "%s%s", info->path, info->files[i].filename);
+      snprintf(filename, sizeof(filename), "%s%s", info->path, info->files[i].filename);
 
       hFile = HttpOpenRequest(hSession, NULL, filename, NULL, NULL,
                               mime_types,
@@ -167,7 +160,7 @@ void __cdecl TransferStart(void *download_info)
 
       PostMessage(info->hPostWnd, BK_FILESIZE, i, file_size);
       
-      sprintf(local_filename, "%s\\%s", download_dir, info->files[i].filename);
+      snprintf(local_filename, sizeof(local_filename), "%s\\%s", download_dir, info->files[i].filename);
       
       outfile = open(local_filename, O_BINARY | O_RDWR | O_CREAT, S_IWRITE | S_IREAD);
       if (outfile <= 0)
@@ -179,7 +172,7 @@ void __cdecl TransferStart(void *download_info)
       }
       
       // Read first block
-      done = False;
+      done = false;
       bytes_read = 0;
       while (!done)
       {
@@ -208,7 +201,7 @@ void __cdecl TransferStart(void *download_info)
         {
           close(outfile);
           InternetCloseHandle(hFile);
-          done = True;
+          done = true;
           
           // Wait for main thread to finish processing previous file
           WaitForSingleObject(hSemaphore, INFINITE);
@@ -235,7 +228,7 @@ void __cdecl TransferStart(void *download_info)
  */
 void TransferAbort(void)
 {
-   aborted = True;
+   aborted = true;
 
    ReleaseSemaphore(hSemaphore, 1, NULL);  // If transfer thread waiting, it will abort
 
@@ -255,17 +248,17 @@ void __cdecl DownloadError(HWND hParent, char *fmt, ...)
 {
    char s[200];
    va_list marker;
-   Bool was_aborted = aborted;
+   bool was_aborted = aborted;
    int retval;
 
    // Only show error dialog box if not from a user abort
    if (!was_aborted)
    {
       va_start(marker,fmt);
-      vsprintf(s,fmt,marker);
+      vsnprintf(s, sizeof(s), fmt,marker);
       va_end(marker);
       
-      retval = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_FTPERROR), hMain, ErrorDialogProc, 
+      retval = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_FTPERROR), hMain, ErrorDialogProc, 
 			   (LPARAM) s);
       
       if (retval == IDOK)
@@ -279,7 +272,7 @@ void __cdecl DownloadError(HWND hParent, char *fmt, ...)
 /*
  * ErrorDialogProc:  Dialog procedure for displaying error and asking for retry.
  */
-BOOL CALLBACK ErrorDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK ErrorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {

@@ -23,15 +23,15 @@
 
 /* Given a distance x, return palette index to use.  Must have x > 0 */
 /* "v" is strength of light source at viewer; "a" strength of ambient light */
-#define LIGHT_INDEX(x, v, a) (min(MAX_LIGHT - 1, \
-				  (4*FINENESS*FINENESS) / (x) * (v) / KOD_LIGHT_LEVELS + (a)))
+#define LIGHT_INDEX(x, v, a) (std::min(MAX_LIGHT - 1, \
+				  (int)((4*FINENESS*FINENESS) / (x) * (v) / KOD_LIGHT_LEVELS + (a))))
 
 #define LIGHT_NEUTRAL 192       // Light level of sector drawn at ambient light level
 
-// XXX Temporary maximum on # of objects in room 
+// Maximum # of objects in room 
 #define MAXOBJECTS 2000
 
-#define MAX_OBJS_PER_SQUARE 3
+#define MAX_OBJS_PER_SQUARE 10
 
 #define BITMAP_WIDTH 64  
 #define LOG_BITMAP_WIDTH 6
@@ -59,8 +59,9 @@ typedef struct {
 typedef struct
 {
    short leftedge, rightedge;   /* viewable columns of screen (inclusive) */
-   long top_a,top_b,top_d;
-   long bot_a,bot_b,bot_d;     /* see comments in drawbsp.c */
+   // These need to be 64 bit to avoid overflow in some multiplications
+   int64 top_a, top_b, top_d;
+   int64 bot_a, bot_b, bot_d;     /* see comments in drawbsp.c */
 } ViewCone;
 
 /* Parameters to be passed to DrawRoom3D */
@@ -78,7 +79,7 @@ typedef struct {
 
 // Structure used for drawing objects and projectiles
 typedef struct {
-   Bool draw;                  /* True if object is drawn; false if visible but not drawn */
+   bool draw;                  /* True if object is drawn; false if visible but not drawn */
    ID   id;                    /* object's ID number, or INVALID_ID if a projectile */
    long distance;              /* Distance to object */
    long angle;                 /* Angle object is facing */
@@ -95,11 +96,11 @@ typedef struct {
    room_contents_node *obj;    // Pointer to room_contents_node for object
 } DrawnObject;
 
-Bool InitializeGraphics3D(void);
+bool InitializeGraphics3D(void);
 void CloseGraphics3D(void);
 void ViewElementsReposition( AREA* pAreaView );
 void GraphicsResetFont(void);
-void RecopyRoom3D( HDC hdc, int x, int y, int width, int height, Bool bMiniMap );
+void RecopyRoom3D(HDC hdc, int x, int y, int width, int height, bool bMiniMap);
 void SetLightingInfo(int sun_x, int sun_y, BYTE intensity);
 
 int  DiscreteLog(int x);
@@ -110,10 +111,9 @@ BYTE *GetLightPalette(int distance, BYTE sector_light, long scale, int lightOffs
 int GetLightPaletteIndex(int distance, BYTE sector_light, long scale, int lightOffset);
 int  GetFlicker(room_contents_node *obj);
 
-/* 
-void DrawMapAsView(room_type *room, Draw3DParams *params); // defined in drawbsp.h
-void DrawMiniMap(room_type *room, Draw3DParams *params); // defined in drawbsp.h
-*/
+const Draw3DParams& getDrawParams();
+void setDrawParams(Draw3DParams* newDrawParams);
+
 
 #endif /* #ifndef _DRAW3D_H */
 

@@ -14,8 +14,8 @@
 
 static BYTE bof_magic[] = { 0x42, 0x4F, 0x46, 0xFF };
 
-int codegen_ok;
-extern int debug_bof;  /* Should we put debugging info into .bof? */
+bool codegen_ok;
+extern bool debug_bof;  /* Should we put debugging info into .bof? */
 
 typedef struct {
    int lineno;   // Kod line number
@@ -23,7 +23,7 @@ typedef struct {
 } DebugLine;
 
 static list_type debug_lines;   // list of DebugLine structures
-int outfile; /* File handle of output file */
+FILE *outfile; /* File handle of output file */
 static list_type loop_stack;    /* Info for all current (possibly nested) loops */
 static loop_type current_loop;  /* Info for current loop */
 
@@ -50,8 +50,8 @@ void codegen_classes(void)
 
    /* Make list of only classes which appeared in current source file */
    for (templist = st.classes; templist != NULL; templist = templist->next)
-      if ( ((class_type) (templist->data))->is_new == True)
-	 c = list_add_item(c, templist->data);
+      if ( ((class_type) (templist->data))->is_new)
+        c = list_add_item(c, templist->data);
    
    /* Write out # of classes */
    numclasses = list_length(c);
@@ -109,7 +109,7 @@ void codegen_string_table(void)
    {
       OutputInt(outfile, curpos + total_len + st.num_strings * 4);
       str = (char *) (l->data);
-      total_len += strlen(str) + 1;
+      total_len += (int) strlen(str) + 1;
       l = l->next;
    }
 
@@ -118,7 +118,7 @@ void codegen_string_table(void)
    for (i=0; i < st.num_strings; i++)
    {
       str = (char *) (l->data);
-      write(outfile, str, strlen(str));
+      fwrite(str, (int) strlen(str), 1, outfile);
       OutputByte(outfile, 0);    // null terminate
       l = l->next;
    }
@@ -147,7 +147,7 @@ void codegen_debug_info(void)
  */
 void codegen_filename(char *filename)
 {
-   write(outfile, filename, strlen(filename));
+   fwrite(filename, (int) strlen(filename), 1, outfile);
    OutputByte(outfile, 0);    // null terminate
 }
 /************************************************************************/
@@ -859,12 +859,12 @@ void codegen(char *kod_fname, char *bof_fname)
    list_type c = NULL;
    long endpos, stringpos, debugpos, namepos;
 
-   codegen_ok = True;
+   codegen_ok = true;
    debug_lines = NULL;
 
-   outfile = open(bof_fname, O_TRUNC | O_CREAT | O_RDWR | O_BINARY, S_IWRITE | S_IREAD);
+   outfile = fopen(bof_fname, "w+b");
 
-   if (outfile == -1)
+   if (outfile == nullptr)
    {
       simple_error("Unable to open bof file %s!", bof_fname);
       return;
@@ -917,7 +917,7 @@ void codegen(char *kod_fname, char *bof_fname)
       codegen_filename(kod_fname);
    }
 
-   close(outfile);
+   fclose(outfile);
 
    /* If code generation failed, delete partial bof file */
    if (!codegen_ok)
@@ -931,12 +931,12 @@ void codegen(char *kod_fname, char *bof_fname)
    if (codegen_ok)
    {
       char temp[256];
-      set_extension(temp, bof_fname, ".rsc");
+      set_extension(temp, sizeof(temp), bof_fname, ".rsc");
       write_resources(temp);
       save_kodbase();
    }
 
    /* Mark all classes as done */
    for (c = st.classes; c != NULL; c = c->next)
-      ((class_type) (c->data))->is_new = False;
+      ((class_type) (c->data))->is_new = false;
 }

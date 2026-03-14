@@ -20,7 +20,7 @@ extern player_info player;
 
 #define WHOM_UPDATE (WM_APP+5)
 
-Bool AddUserToIgnoreList(ID name)
+bool AddUserToIgnoreList(ID name)
 {
   char *str = LookupNameRsc(name);
   if (str != NULL)
@@ -30,12 +30,12 @@ Bool AddUserToIgnoreList(ID name)
       if (0 == config.ignore_list[i][0])
       {
         strncpy(config.ignore_list[i], str, MAX_CHARNAME);
-        return True;
+        return true;
       }
   }
 
   // Do nothing.. ignore list is full.  Maybe should tell the user?
-  return False;
+  return false;
 }
 
 void RemoveUserFromIgnoreList(ID name)
@@ -50,7 +50,7 @@ void RemoveUserFromIgnoreList(ID name)
   }
 }
 
-Bool IsUserInIgnoreList(ID name)
+bool IsUserInIgnoreList(ID name)
 {
   char *str = LookupNameRsc(name);
   if (str != NULL)
@@ -58,9 +58,9 @@ Bool IsUserInIgnoreList(ID name)
     int i;
     for (i = 0; i < MAX_IGNORE_LIST; ++i)
       if (0 == strcmp(config.ignore_list[i], str))
-        return True;
+        return true;
   }
-  return False;
+  return false;
 }
 
 void UpdateWho(object_node* pUser, BOOL bAdded)
@@ -71,12 +71,12 @@ void UpdateWho(object_node* pUser, BOOL bAdded)
 }
 
 /*****************************************************************************/
-BOOL CALLBACK WhoDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK WhoDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    HWND hList;
    IDList users;
    int num, i;
-   Bool selected, ignored;
+   bool selected, ignored;
    
    switch (message)
    {      
@@ -86,10 +86,10 @@ BOOL CALLBACK WhoDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
       hList = GetDlgItem(hDlg, IDC_USERLIST);
 
       // Don't draw objects; too slow to load user bitmaps
-      SetWindowLong(hList, GWL_USERDATA, OD_DRAWICON | OD_ONLYSEL | OD_COLORTEXT | OD_MAKEICONINDEX(0));
+      SetWindowLongPtr(hList, GWLP_USERDATA, OD_DRAWICON | OD_ONLYSEL | OD_COLORTEXT | OD_MAKEICONINDEX(0));
       
       /* Set contents of user list */
-      ItemListSetContents(hList, users, False);
+      ItemListSetContents(hList, users, false);
 
       // Highlight people we're not ignoring
       num = ListBox_GetCount(hList);
@@ -111,7 +111,7 @@ BOOL CALLBACK WhoDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
       CheckDlgButton(hDlg, IDC_IGNOREALL, config.ignore_all);
 
       if (config.ignore_all)
-         SetWindowLong(hList, GWL_USERDATA, GetWindowLong(hList, GWL_USERDATA) | OD_NEXTICON);
+         SetWindowLongPtr(hList, GWLP_USERDATA, GetWindowLongPtr(hList, GWLP_USERDATA) | OD_NEXTICON);
 
       hWhoDialog = hDlg;
       return TRUE;
@@ -130,8 +130,8 @@ BOOL CALLBACK WhoDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
      debug(("WHOM_UPDATE, %s user %i\n", (LPCTSTR)(bAdded?"adding":"removing"), pUser->id));
      if (bAdded)
      {
-       i = ItemListAddItem(hList, pUser, -1, False);
-       if (!IsUserInIgnoreList(pUser->name_res))
+       i = ItemListAddItem(hList, pUser, -1, false);
+       if (i != LB_ERR && !IsUserInIgnoreList(pUser->name_res))
 	       ListBox_SetSel(hList, TRUE, i);
      }
      else
@@ -160,9 +160,9 @@ BOOL CALLBACK WhoDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
       case IDC_IGNOREALL:
         hList = GetDlgItem(hDlg, IDC_USERLIST);
         if (IsDlgButtonChecked(hDlg, IDC_IGNOREALL))
-          SetWindowLong(hList, GWL_USERDATA, GetWindowLong(hList, GWL_USERDATA) | OD_NEXTICON);
+          SetWindowLongPtr(hList, GWLP_USERDATA, GetWindowLongPtr(hList, GWLP_USERDATA) | OD_NEXTICON);
         else
-          SetWindowLong(hList, GWL_USERDATA, GetWindowLong(hList, GWL_USERDATA) & ~OD_NEXTICON);
+          SetWindowLongPtr(hList, GWLP_USERDATA, GetWindowLongPtr(hList, GWLP_USERDATA) & ~OD_NEXTICON);
         InvalidateRect(hList, NULL, TRUE);
         return TRUE;
         

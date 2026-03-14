@@ -26,6 +26,7 @@ void MainServer();
 void MainExitServer();
 
 DWORD main_thread_id;
+static bool in_main_loop = false;
 
 #ifdef BLAK_PLATFORM_WINDOWS
 
@@ -49,6 +50,11 @@ int main(int argc, char **argv)
 }
 
 #endif
+
+bool InMainLoop(void)
+{
+   return in_main_loop;
+}
 
 void MainServer()
 {
@@ -93,6 +99,8 @@ void MainServer()
 	InitTable();
 	AddBuiltInDLlist();
 	
+	InitWebhooks();
+	
 	LoadMotd();
 	LoadBof();
 	LoadRsc();
@@ -102,7 +110,7 @@ void MainServer()
 	
 	PauseTimers();
 	
-	if (LoadAll() == True)
+	if (LoadAll() == true)
 	{
 	/* this loaded_game_msg tells it to disconnect all blakod info about sessions,
 		* that were logged on when we saved */
@@ -122,9 +130,22 @@ void MainServer()
 	UnpauseTimers();
 
 	
+	//SetWindowText(hwndMain, ConfigStr(CONSOLE_CAPTION));
 
-	ServiceTimers();
-	/* returns if server termiated */
+    StartupComplete(); /* for the interface to report no errors on startup */
+    InterfaceUpdate();
+    lprintf("Status: %i accounts\n",GetNextAccountID());
+
+    lprintf("-------------------------------------------------------------------------------------\n");
+    dprintf("-------------------------------------------------------------------------------------\n");
+    eprintf("-------------------------------------------------------------------------------------\n");
+
+    AsyncSocketStart();
+
+    in_main_loop = true;
+
+    RunMainLoop();
+	/* returns if server terminated */
 	
 	MainExitServer();
 }
@@ -158,34 +179,10 @@ void MainExitServer()
 	ResetMessage();
 	ResetClass();
 	
+	ShutdownWebhooks();
+	
 	ResetConfig();
 	
 	DeleteAllBlocks();
 }
 
-#ifdef BLAK_PLATFORM_LINUX
-int GetLastError()
-{
-   return errno;
-}
-#endif
-
-char * GetLastErrorStr()
-{
-#ifdef BLAK_PLATFORM_WINDOWS
-
-	char *error_str;
-	
-	error_str = "No error string"; /* in case the call  fails */
-	
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-		NULL,GetLastError(),MAKELANGID(LANG_ENGLISH,SUBLANG_ENGLISH_US),
-		(LPTSTR) &error_str,0,NULL);
-	return error_str;
-   
-#else
-
-   return strerror(errno);
-   
-#endif
-}

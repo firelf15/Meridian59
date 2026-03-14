@@ -22,9 +22,9 @@
 HINSTANCE hInst;
 HWND hwndMain;
 
-Bool success;
+bool success;
 
-static Bool retry = True;   // True when an error occurs and user asks to retry
+static bool retry = true;   // true when an error occurs and user asks to retry
 
 std::string restart_filename;
 
@@ -40,14 +40,14 @@ std::string transfer_local_filename;
 std::string dest_path;
 
 /* local function prototypes */
-Bool ParseCommandLine(const char *args);
+bool ParseCommandLine(const char *args);
 void RestartFilename();
 void StartupError();
 void RestartClient();
 void Interface(int how_show);
-long WINAPI InterfaceWindowProc(HWND hwnd,UINT message,UINT wParam,LONG lParam);
+LRESULT WINAPI InterfaceWindowProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam);
 void OnTimer(HWND hwnd,int id);
-BOOL CALLBACK ErrorDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+INT_PTR CALLBACK ErrorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 /************************************************************************/
 int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrev_instance,char *command_line,int how_show)
@@ -56,7 +56,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrev_instance,char *command_li
 
    InitCommonControls();
 
-   success = False; /* whether the copy compeletely succeeded */
+   success = false; /* whether the copy compeletely succeeded */
 
    if (ParseCommandLine(command_line))
    {
@@ -66,7 +66,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrev_instance,char *command_li
    if (success)
       RestartClient();
 
-   if (success == False)
+   if (success == false)
       return 1;
    
    return 0;
@@ -115,7 +115,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
    return args;
 }
 /************************************************************************/
-Bool ParseCommandLine(const char *args)
+bool ParseCommandLine(const char *args)
 {
    std::string argstring(args);
    std::vector<std::string> arguments = split(argstring, ' ');
@@ -123,13 +123,13 @@ Bool ParseCommandLine(const char *args)
    if (arguments.size() != 6)
    {
       StartupError();
-      return False;
+      return false;
    }
    
    if (arguments[1] != "UPDATE")
    {
       StartupError();
-      return False;
+      return false;
    }
 
    restart_filename = arguments[0];
@@ -141,7 +141,7 @@ Bool ParseCommandLine(const char *args)
 
    dest_path = arguments[5];
 
-   return True;
+   return true;
 }
 /************************************************************************/
 void StartupError()
@@ -160,9 +160,9 @@ void RestartClient()
    si.cb = sizeof(si);
    GetStartupInfo(&si); /* shouldn't need to do this.  very weird */
 
-   if (!CreateProcess(restart_filename.c_str(),"",NULL,NULL,FALSE,0,NULL,NULL,&si,&pi))
+   if (!CreateProcess(restart_filename.c_str(),NULL,NULL,NULL,FALSE,0,NULL,NULL,&si,&pi))
    {
-      sprintf(s,GetString(hInst, IDS_CANTRESTART),GetLastError(),restart_filename.c_str());
+     snprintf(s, sizeof(s), GetString(hInst, IDS_CANTRESTART),GetLastError(),restart_filename.c_str());
       MessageBox(NULL,s,GetString(hInst, IDS_APPNAME),MB_ICONSTOP);
    }
 }
@@ -199,7 +199,7 @@ void Interface(int how_show)
    }
 }
 /************************************************************************/
-long WINAPI InterfaceWindowProc(HWND hwnd,UINT message,UINT wParam,LONG lParam)
+LRESULT WINAPI InterfaceWindowProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
 {
    HWND hCtrl;
 
@@ -211,7 +211,7 @@ long WINAPI InterfaceWindowProc(HWND hwnd,UINT message,UINT wParam,LONG lParam)
       SetFocus(GetDlgItem(hwnd, IDCANCEL));
 
       GetDlgItemText(hwnd, IDC_BYTES1, format, sizeof(format));
-      sprintf(string, format, transfer_progress, transfer_file_size);
+      snprintf(string, sizeof(string), format, transfer_progress, transfer_file_size);
       SetDlgItemText(hwnd, IDC_BYTES1, string);
 
       hCtrl = GetDlgItem(hwnd, IDC_ANIMATE1);
@@ -242,8 +242,8 @@ long WINAPI InterfaceWindowProc(HWND hwnd,UINT message,UINT wParam,LONG lParam)
 
    case CM_FILESIZE:
       // Set max value
-     transfer_file_size = lParam;
-      sprintf(string, format, transfer_progress, transfer_file_size);
+      transfer_file_size = (int) lParam;
+      snprintf(string, sizeof(string), format, transfer_progress, transfer_file_size);
       SetDlgItemText(hwndMain, IDC_BYTES1, string);
       SendDlgItemMessage(hwnd, IDC_PROGRESS, PBM_SETRANGE, 0,
                          MAKELPARAM(0, transfer_file_size / 100));
@@ -251,8 +251,8 @@ long WINAPI InterfaceWindowProc(HWND hwnd,UINT message,UINT wParam,LONG lParam)
 
    case CM_PROGRESS:
       // Set current value
-      transfer_progress = lParam;
-      sprintf(string, format, transfer_progress, transfer_file_size);
+      transfer_progress = (int) lParam;
+      snprintf(string, sizeof(string), format, transfer_progress, transfer_file_size);
       SetDlgItemText(hwndMain, IDC_BYTES1, string);
       SendDlgItemMessage(hwnd, IDC_PROGRESS, PBM_SETPOS, transfer_progress / 100, 0);
       break;
@@ -290,7 +290,7 @@ void Status(char *fmt, ...)
    va_list marker;
     
    va_start(marker,fmt);
-   vsprintf(s,fmt,marker);
+   vsnprintf(s, sizeof(s), fmt,marker);
    va_end(marker);
 
    SetDlgItemText(hwndMain, IDC_STATUS, s);
@@ -301,26 +301,26 @@ void Status(char *fmt, ...)
  */
 void Error(char *fmt, ...)
 {
-   int retval;
+   INT_PTR retval;
    char s[500];
    va_list marker;
     
    va_start(marker,fmt);
-   vsprintf(s,fmt,marker);
+   vsnprintf(s, sizeof(s), fmt,marker);
    va_end(marker);
 
    retval = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ERROR), hwndMain, ErrorDialogProc, 
 			   (LPARAM) s);
 
    if (retval == IDOK)
-      retry = True;
-   else retry = False;
+      retry = true;
+   else retry = false;
 }
 /*****************************************************************************/
 /*
  * ErrorDialogProc:  Dialog procedure for displaying error and asking for retry.
  */
-BOOL CALLBACK ErrorDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK ErrorDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -343,9 +343,9 @@ BOOL CALLBACK ErrorDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
    return FALSE;
 }
 /*****************************************************************************/
-char *GetLastErrorStr()
+const char *GetLastErrorStr()
 { 
-   char *error_str;
+   const char *error_str;
    
    error_str = "No error string"; /* in case the call  fails */
 

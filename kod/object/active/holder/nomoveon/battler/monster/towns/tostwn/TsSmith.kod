@@ -76,7 +76,7 @@ messages:
                      Create(&Hammer),
                      Create(&MetalShield)],
                      $,
-                     [SID_MAGICSHIELD], $ ];
+                     [SID_MAGIC_SHIELD], $ ];
       return;
    }
 
@@ -91,7 +91,7 @@ messages:
    }
 
 
-   UserEntered(who = $)
+   WelcomeUser(who = $)
    {
       Post(poOwner,@SomeoneSaid,#what = self, #string=entry_welcome,
          #type = SAY_RESOURCE, 

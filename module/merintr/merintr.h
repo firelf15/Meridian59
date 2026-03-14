@@ -94,10 +94,13 @@ extern client_message msg_table[];
 extern client_message user_msg_table[];
 
 extern ClientInfo *cinfo;         // Holds data passed from main client
-extern Bool exiting;              // True when module is exiting and should be unloaded
+extern bool exiting;              // True when module is exiting and should be unloaded
 
 extern HINSTANCE hInst;  // module handle
 
 extern player_info *GetPlayer(void);
+
+extern void SetStatGroup(StatGroup stat_group);
+extern StatGroup GetStatGroup(void);
 
 #endif /* #ifndef _MERINTR_H */

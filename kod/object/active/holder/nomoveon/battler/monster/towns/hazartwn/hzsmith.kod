@@ -36,13 +36,17 @@ messages:
 
    SetForSale()
    {
-      plFor_sale = [ [ Create(&Mace),Create(&ShortSword),
-                     Create(&LongSword),Create(&ScaleArmor),
-					 Create(&LeatherArmor)],$,$];
+      plFor_sale = [ [ Create(&ChainArmor),
+                       Create(&LeatherArmor),
+                       Create(&MetalShield),
+                       Create(&ShortSword),
+                       Create(&Mace)
+                       ],
+                       $,$];
       return;
    }
 
-   ObjectDesired(what=$)
+   ObjectDesired(what=$,who=$)
    {
            if send(what,@CanBeGivenToNPC) AND
            (send(self,@IsObjectWearable,#what=what)
@@ -52,7 +56,7 @@ messages:
 	   return FALSE;		   
    }
 
-   UserEntered(who = $)
+   WelcomeUser(who = $)
    {
       Post(poOwner,@SomeoneSaid,#what = self, #string=HzBla_entry_welcome,
          #type = SAY_RESOURCE, 

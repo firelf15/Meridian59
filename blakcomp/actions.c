@@ -68,10 +68,7 @@ void initialize_parser(void)
    st.maxresources = RESOURCEBASE;
    st.maxlocals = -1; /* So that first local is numbered 0 */
    st.maxclassvars = -1; /* So that first class variable is numbered 0 */
-   // XXX not needed because of self
-#if 0
-   st.maxproperties = -1; /* So that first property is numbered 0 */
-#endif
+   st.maxproperties = 0; /* So that first property is numbered 1; 0 = self */
    
    st.recompile_list = NULL;
    st.constants = NULL;
@@ -116,17 +113,17 @@ int class_compare(void *info1, void *info2)
 }
 /************************************************************************/
 /*
- * is_parent: returns True iff parent is a parent class of child, or if 
+ * is_parent: returns true iff parent is a parent class of child, or if 
  *    parent and child are the same class.
  *    Class id #s are compared to see if two classes are equal.
  */
-int is_parent(class_type parent, class_type child)
+bool is_parent(class_type parent, class_type child)
 {
    if (child->class_id->idnum == parent->class_id->idnum)
-      return True;
+      return true;
 
    if (child->superclass == NULL)
-      return False;
+      return false;
 
    return is_parent(parent, child->superclass);
 }
@@ -139,6 +136,7 @@ id_type duplicate_id(id_type id)
    temp->type = id->type;
    temp->ownernum = id->ownernum;
    temp->idnum = id->idnum;
+   temp->assigned = id->assigned;
    return temp;
 }
 /************************************************************************/
@@ -164,6 +162,7 @@ id_type lookup_id(id_type id)
       id->idnum = record->idnum;
       id->ownernum = record->ownernum;
       id->source = record->source;
+      id->assigned = record->assigned;
       return record;
    }
 
@@ -175,6 +174,7 @@ id_type lookup_id(id_type id)
       id->idnum = record->idnum;
       id->ownernum = record->ownernum;
       id->source = record->source;
+      id->assigned = record->assigned;
       return record;
    }
 
@@ -186,6 +186,7 @@ id_type lookup_id(id_type id)
       id->idnum = record->idnum;
       id->ownernum = record->ownernum;
       id->source = record->source;
+      id->assigned = record->assigned;
       return record;
    }
 
@@ -197,6 +198,7 @@ id_type lookup_id(id_type id)
       id->idnum = record->idnum;
       id->ownernum = record->ownernum;
       id->source = record->source;
+      id->assigned = record->assigned;
       return record;
    }
 
@@ -430,9 +432,9 @@ const_type make_literal_message(id_type id)
 expr_type make_expr_from_id(id_type id)
 {
    expr_type e = (expr_type) SafeMalloc(sizeof(expr_struct));
-   
+
    /* Id must be a parameter, local, property, constant, or resource */
-   lookup_id(id);		
+   lookup_id(id);
    switch(id->type)
    {
    case I_LOCAL:
@@ -484,6 +486,16 @@ expr_type make_expr_from_id(id_type id)
       break;
    }
    e->lineno = lineno;
+
+   // Look for use of uninitialized variable
+   if (id->type == I_LOCAL && !id->assigned) {
+     // Is this actually a parameter, not a true local?
+     auto record = (id_type) table_lookup(st.globalvars, (void *) id, id_hash, id_compare);
+     if (record == nullptr) {
+       action_error("Variable %s used before it's initialized", id->name);
+     }
+   }
+   
    return e;
 }
 /************************************************************************/
@@ -876,7 +888,7 @@ stmt_type make_assign_stmt(id_type id, expr_type expr)
    assign_stmt_type s = (assign_stmt_type) SafeMalloc(sizeof(assign_stmt_struct));
 
    /* Left-hand side must be a local or property */
-   lookup_id(id);
+   auto old_id = lookup_id(id);
    if (id->type == I_UNDEFINED || id->type == I_MISSING)
       action_error("Unknown identifier %s", id->name);
    else
@@ -889,24 +901,34 @@ stmt_type make_assign_stmt(id_type id, expr_type expr)
 
    s->lhs = id;
    s->rhs = expr;
+   old_id->assigned = true;  // Modify version in symbol table
 
    stmt->type = S_ASSIGN;
    stmt->value.assign_stmt_val = s;
    return stmt;
 }
 /************************************************************************/
-stmt_type make_for_stmt(id_type id, expr_type expr, list_type stmts)
+id_type make_loop_variable(id_type id)
 {
-   stmt_type stmt = (stmt_type) SafeMalloc(sizeof(stmt_struct));
-   for_stmt_type s = (for_stmt_type) SafeMalloc(sizeof(for_stmt_struct));
-
    /* Loop variable must be a local, property or parameter */
-   lookup_id(id);
+   auto old_id = lookup_id(id);
+   // In body of loop, consider that loop variable has been assigned
+   if (old_id != NULL) {
+     old_id->assigned = true;
+   }
+
    if (id->type == I_UNDEFINED || id->type == I_MISSING)
       action_error("Unknown identifier %s", id->name);
    else
       if (id->type != I_LOCAL && id->type != I_PROPERTY)
 	 action_error("Loop variable %s has wrong type", id->name);
+   return id;
+}
+/************************************************************************/
+stmt_type make_for_stmt(id_type id, expr_type expr, list_type stmts)
+{
+   stmt_type stmt = (stmt_type) SafeMalloc(sizeof(stmt_struct));
+   for_stmt_type s = (for_stmt_type) SafeMalloc(sizeof(for_stmt_struct));
 
    s->id = id;
    s->condition = expr;
@@ -1185,6 +1207,15 @@ message_handler_type make_message_handler(message_header_type header, char *comm
    table_delete(st.localvars);
    st.maxlocals = -1; /* So that first local is numbered 0 */
 
+   // Unused local variable is an error
+   for (auto local = h->locals; local != NULL; local = local->next) {
+     auto id = (id_type) local->data;
+     if (!id->assigned) {
+       action_warning("Unused local %s in handler %s", id->name,
+                      header->message_id->name);
+     }
+   }
+   
    return h;
 }
 /************************************************************************/
@@ -1424,7 +1455,7 @@ class_type make_class_signature(id_type class_id, id_type superclass_id)
    c->resources  = NULL;
    c->properties = NULL;
    c->messages   = NULL;
-   c->is_new = True; /* We should generate code for this class */
+   c->is_new = true; /* We should generate code for this class */
 
    /* Superclass must be defined, if one is given */
    if (superclass_id != NULL)
@@ -1472,8 +1503,6 @@ class_type make_class_signature(id_type class_id, id_type superclass_id)
 class_type make_class(class_type c, list_type resources, list_type classvars,
 		      list_type properties, list_type messages)
 {
-   int has_constructor = False;
-
    c->resources = resources;
    c->classvars = list_append(st.override_classvars, classvars);
    c->properties = properties;

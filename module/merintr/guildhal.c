@@ -17,8 +17,8 @@ static GuildHall *halls;
 
 extern HWND hGuildHallsDialog;
 
-static BOOL CALLBACK GuildHallsDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
-static Bool ListViewGetCurrentData(HWND hList, int *index, int *data);
+static INT_PTR CALLBACK GuildHallsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static bool ListViewGetCurrentData(HWND hList, int *index, int *data);
 static int CALLBACK GuildHallCompareProc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 /****************************************************************************/
 /*
@@ -35,7 +35,7 @@ void GuildHallsReceived(WORD init_num_halls, GuildHall *init_halls)
 /*
  * GuildHallsDialogProc:  Dialog procedure for guild halls dialog.
  */
-BOOL CALLBACK GuildHallsDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK GuildHallsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    HWND hList; 
    int i, index, len;
@@ -178,9 +178,9 @@ BOOL CALLBACK GuildHallsDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lP
 /*
  * ListViewGetCurrentData:  Set index to index of currently selected item 
  *   in given list view control, and data to its lParam value.
- * Return True if a selected item is found, False otherwise.
+ * Return true if a selected item is found, false otherwise.
  */
-Bool ListViewGetCurrentData(HWND hList, int *index, int *data)
+bool ListViewGetCurrentData(HWND hList, int *index, int *data)
 {
    int i, num;
    LV_ITEM lvitem;
@@ -199,10 +199,10 @@ Bool ListViewGetCurrentData(HWND hList, int *index, int *data)
       {
 	 *index = i;
 	 *data = lvitem.lParam;
-	 return True;
+	 return true;
       }
    }
-   return False;
+   return false;
 }
 /****************************************************************************/
 /*

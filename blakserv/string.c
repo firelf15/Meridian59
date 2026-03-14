@@ -88,17 +88,17 @@ string_node *GetStringByID(int string_id)
    return &strings[string_id];
 }
 
-Bool IsStringByID(int string_id)
+bool IsStringByID(int string_id)
 {
    if (string_id < 0 || string_id >= num_strings)
-      return False;
+      return false;
 
-   return True;
+   return true;
 }
 
 int CreateString(const char *new_str)
 {
-   return CreateStringWithLen(new_str,strlen(new_str));
+  return CreateStringWithLen(new_str, (int) strlen(new_str));
 }
 
 int CreateStringWithLen(const char *buf,int len)
@@ -118,7 +118,7 @@ int CreateStringWithLen(const char *buf,int len)
    return string_id;
 }
 
-Bool LoadBlakodString(FILE *f,int len_str,int string_id)
+bool LoadBlakodString(FILE *f,int len_str,int string_id)
 {
    string_node *snod;
 
@@ -126,7 +126,7 @@ Bool LoadBlakodString(FILE *f,int len_str,int string_id)
    if (AllocateString() != string_id)
    {
       eprintf("LoadString didn't make string id %i\n",string_id);
-      return False;
+      return false;
    }
    snod = GetStringByID(string_id);
 
@@ -134,7 +134,7 @@ Bool LoadBlakodString(FILE *f,int len_str,int string_id)
    {
       snod->data = (char *)AllocateMemory(MALLOC_ID_STRING,len_str+1);
       if (!fread(snod->data, 1, len_str, f))
-         return False;
+         return false;
       snod->data[len_str] = '\0';
    }
    else
@@ -144,7 +144,7 @@ Bool LoadBlakodString(FILE *f,int len_str,int string_id)
 
    snod->len_data = len_str;
    
-   return True;
+   return true;
 }
 
 void ForEachString(void (*callback_func)(string_node *snod,int string_id))
@@ -276,6 +276,6 @@ void AppendNumToTempString(int iNum)
 {
    char numbuf[20];
 
-   sprintf(numbuf, "%d", iNum);
-   AppendTempString(numbuf, strlen(numbuf));
+   snprintf(numbuf, sizeof(numbuf), "%d", iNum);
+   AppendTempString(numbuf, (int) strlen(numbuf));
 }

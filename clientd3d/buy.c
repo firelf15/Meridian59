@@ -21,8 +21,8 @@ static char temp[MAXAMOUNT + 1];
 
 static void BuyCommand(HWND hDlg, int id, HWND hwndCtl, UINT codeNotify);
 static void WithdrawCommand(HWND hDlg, int id, HWND hwndCtl, UINT codeNotify);
-static BOOL CALLBACK BuyDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
-static BOOL CALLBACK WithdrawalDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+static INT_PTR CALLBACK BuyDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static INT_PTR CALLBACK WithdrawalDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 static BOOL BuyInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam);
 static void UpdateCost(void);
 static BOOL CostListDrawItem(const DRAWITEMSTRUCT *lpdis);
@@ -69,7 +69,7 @@ static void DoAlignLists(void)
  *   from a list of objects.
  *   lParam of the WM_INITDIALOG message should be a pointer to a BuyDialogStruct.
  */
-BOOL CALLBACK BuyDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK BuyDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -105,7 +105,7 @@ BOOL CALLBACK BuyDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
  *   withdraw from a list of objects.
  *   lParam of the WM_INITDIALOG message should be a pointer to a BuyDialogStruct.
  */
-BOOL CALLBACK WithdrawalDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK WithdrawalDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -152,9 +152,9 @@ BOOL BuyInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam)
    info->hwndCost = GetDlgItem(hDlg, IDC_COST);
 
    // Draw objects in owner-drawn list box
-   SetWindowLong(info->hwndItemList, GWL_USERDATA, OD_DRAWOBJ);
-   SetWindowLong(info->hwndCostList, GWL_USERDATA, OD_DRAWOBJ);
-   SetWindowLong(info->hwndQuanList, GWL_USERDATA, OD_DRAWOBJ);
+   SetWindowLongPtr(info->hwndItemList, GWLP_USERDATA, OD_DRAWOBJ);
+   SetWindowLongPtr(info->hwndCostList, GWLP_USERDATA, OD_DRAWOBJ);
+   SetWindowLongPtr(info->hwndQuanList, GWLP_USERDATA, OD_DRAWOBJ);
 
    /* Add items & costs to list boxes */
    WindowBeginUpdate(info->hwndItemList);
@@ -165,13 +165,13 @@ BOOL BuyInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam)
       DWORD amount = 1;
       DWORD cost;
       buy_object *buy_obj = (buy_object *) l->data;
-      index = ItemListAddItem(info->hwndItemList, &buy_obj->obj, -1, False);
+      index = ItemListAddItem(info->hwndItemList, &buy_obj->obj, -1, false);
       if (IsNumberObj(buy_obj->obj.id))
 	 amount = buy_obj->obj.amount;
       else
 	 amount = 1;
       cost = buy_obj->cost; // this WAS for a group: buy_obj->cost / amount;
-      sprintf(temp, "%d", cost);
+      snprintf(temp, sizeof(temp), "%d", cost);
       ListBox_InsertString(info->hwndCostList, index, temp);
       ListBox_SetItemData(info->hwndCostList, index, cost);
       ListBox_InsertString(info->hwndQuanList, index, " ");
@@ -223,7 +223,7 @@ static void ClickOnQuantity(HWND hDlg, BOOL bLimitToAmount)
 	    ListBox_DeleteString(info->hwndQuanList,index);
 	    if (amount > 0)
 	    {
-	       sprintf(temp, "%d", amount);
+         snprintf(temp, sizeof(temp), "%d", amount);
 	       ListBox_InsertString(info->hwndQuanList, index, temp);
 	    }
 	    else
@@ -276,7 +276,7 @@ static void HandleSelectionChange(void)
 	 amount = obj->amount;
       else
 	 amount = 1;
-      sprintf(temp, "%d", amount);
+      snprintf(temp, sizeof(temp), "%d", amount);
    }
    else
    {
@@ -402,18 +402,13 @@ void UpdateCost(void)
    num = ListBox_GetCount(info->hwndItemList);
    for (i=0; i < num; i++)
    {
-#if 0
-      if (ListBox_GetSel(info->hwndItemList, i) > 0)
-	 info->cost += ListBox_GetItemData(info->hwndCostList, i);
-#else
       int quantity = (int)ListBox_GetItemData(info->hwndQuanList,i);
       int cost = (int)ListBox_GetItemData(info->hwndCostList,i);
       info->cost += quantity * cost;
-#endif
    }
 
    /* Draw new total cost */
-   sprintf(temp, "%d", info->cost);
+   snprintf(temp, sizeof(temp), "%d", info->cost);
    SetWindowText(info->hwndCost, temp);
 }
 /************************************************************************/
@@ -423,7 +418,6 @@ void UpdateCost(void)
 BOOL CostListDrawItem(const DRAWITEMSTRUCT *lpdis)
 {
    HBRUSH hbrush;
-   Bool selected = False; /* Never draw highlight */
    int dc_state;
 
    /* If box is empty, do nothing */
@@ -447,7 +441,7 @@ BOOL CostListDrawItem(const DRAWITEMSTRUCT *lpdis)
 	 SetTextColor(lpdis->hDC, GetSysColor(COLOR_GRAYTEXT));
       else SetTextColor(lpdis->hDC, GetColor(COLOR_LISTFGD));
       ListBox_GetText(lpdis->hwndItem, lpdis->itemID, temp);
-      DrawText(lpdis->hDC, temp, strlen(temp), 
+      DrawText(lpdis->hDC, temp, (int) strlen(temp), 
 	       &((DRAWITEMSTRUCT *) lpdis)->rcItem, DT_VCENTER | DT_CENTER | DT_NOPREFIX);
       break;
 
@@ -469,17 +463,24 @@ BOOL CostListDrawItem(const DRAWITEMSTRUCT *lpdis)
  */
 void BuyList(object_node seller, list_type items)
 {
+   list_type sorted_list, l;
    BuyDialogStruct dlg_info;
+   sorted_list = NULL;
 
-   dlg_info.items = items;
+   // Separate contents into number items and other items and alpha sort
+   for (l = items; l != NULL; l = l->next)
+      sorted_list = list_add_sorted_item(sorted_list, (l->data), CompareObjectNameAndNumber);
+   
+   dlg_info.items = sorted_list;
    dlg_info.seller_id = seller.id;
    dlg_info.seller_name = seller.name_res;
    dlg_info.cost = 0;
 
    if (hwndBuyDialog == NULL)
       /* Give user list of things to select from */
-      DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_BUY), hMain, BuyDialogProc, (LPARAM) &dlg_info);
+      SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_BUY), hMain, BuyDialogProc, (LPARAM) &dlg_info);
 
+   list_delete(sorted_list);
    ObjectListDestroy(items);
 }
 /*****************************************************************************/
@@ -491,16 +492,23 @@ void BuyList(object_node seller, list_type items)
  */
 void WithdrawalList(object_node seller, list_type items)
 {
+   list_type sorted_list, l;
    BuyDialogStruct dlg_info;
+   sorted_list = NULL;
 
-   dlg_info.items = items;
+   // Separate contents into number items and other items and alpha sort
+   for (l = items; l != NULL; l = l->next)
+      sorted_list = list_add_sorted_item(sorted_list, (l->data), CompareObjectNameAndNumber);
+   
+   dlg_info.items = sorted_list;
    dlg_info.seller_id = seller.id;
    dlg_info.seller_name = seller.name_res;
    dlg_info.cost = 0;
 
    if (hwndBuyDialog == NULL)
       /* Give user list of things to select from */
-      DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_WITHDRAWAL), hMain, WithdrawalDialogProc, (LPARAM) &dlg_info);
+      SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_WITHDRAWAL), hMain, WithdrawalDialogProc, (LPARAM) &dlg_info);
 
+   list_delete(sorted_list);
    ObjectListDestroy(items);
 }

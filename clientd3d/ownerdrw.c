@@ -10,7 +10,7 @@
  *
  * This file implements an owner-drawn list box or combo box control.  The control can 
  * display bitmaps of objects; its behavior is controlled by the OD_* constants that
- * the creator of the window should put in the GWL_USERDATA field of the control when
+ * the creator of the window should put in the GWLP_USERDATA field of the control when
  * it's created.
  */
 
@@ -27,7 +27,7 @@
 
 static HIMAGELIST g_hImageList = NULL;
 
-static void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, Bool selected, Bool combo);
+static void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, bool selected, bool combo);
 /*****************************************************************************/
 /*
  * WindowBeginUpdate:  Turn off redrawing for a list box so that it won't
@@ -54,7 +54,7 @@ void WindowEndUpdate(HWND hwnd)
  * NOTE: All the procedures below are meant to work on either owner-drawn list
  *       boxes or owner-drawn combo boxes, because the code is virtually identical
  *       except for Windows messages.  The last parameter to each function is 
- *       True for combo boxes, and False for list boxes.
+ *       true for combo boxes, and false for list boxes.
  */
 /*****************************************************************************/
 
@@ -66,30 +66,44 @@ void WindowEndUpdate(HWND hwnd)
  *   if the list is sorted, the object is added in sorted order.
  *   Returns index of added item.
  */
-int OwnerListAddItem(HWND hwnd, object_node *obj, int index, Bool combo, Bool quan)
+int OwnerListAddItem(HWND hwnd, object_node *obj, int index, bool combo, bool quan)
 {
-   char *name, desc[MAXNAME + 15];
-   int pos;
+   std::string raritySuffix;
+   std::string nameWithSuffix;
+   std::string nameWithQuantity;
+   std::string nameWithItemInUse;
+   std::string name = LookupNameRsc(obj->name_res);
 
-   name = LookupNameRsc(obj->name_res);
-   /* If item is a number object, add its amount after the item's name */
+   raritySuffix = GetRaritySuffix(obj->rarity);
+
+   // Concatenate name and suffix
+   if (!raritySuffix.empty())
+	{
+      nameWithSuffix = name + " (" + raritySuffix + ")";
+      name = nameWithSuffix;
+   }
+
+   // If item is a number object, prepend its amount to the name
    if (quan && IsNumberObj(obj->id))
    {
-      sprintf(desc, "%d %.*s", obj->amount, MAXNAME, name);
-      name = desc;
-   }
-   /* If player using an object, say so */
-   if (IsInUse(obj->id))
-   {
-      sprintf(desc, "%.*s %s", MAXNAME, name, GetString(hInst, IDS_INUSE));
-      name = desc;
+      nameWithQuantity = std::to_string(obj->amount) + " " + name;
+      name = nameWithQuantity;
    }
 
+   // If player using an object, say so
+   if (IsInUse(obj->id))
+   {
+      nameWithItemInUse = name + " " + GetString(hInst, IDS_INUSE);
+      name = nameWithItemInUse;
+   }
+
+   int pos;
+   const char* nameCString = name.c_str(); // Convert std::string to LPCTSTR
    if (index ==  -1)
-      pos = combo ? ComboBox_AddString(hwnd, name) 
-	 : ListBox_AddString(hwnd, name);
-   else pos = combo ? ComboBox_InsertString(hwnd, index, name) 
-      : ListBox_InsertString(hwnd, index, name);
+      pos = combo ? ComboBox_AddString(hwnd, nameCString) 
+	 : ListBox_AddString(hwnd, nameCString);
+   else pos = combo ? ComboBox_InsertString(hwnd, index, nameCString) 
+      : ListBox_InsertString(hwnd, index, nameCString);
 
    combo ? ComboBox_SetItemData(hwnd, pos, obj) : ListBox_SetItemData(hwnd, pos, obj);
    return pos;
@@ -99,7 +113,7 @@ int OwnerListAddItem(HWND hwnd, object_node *obj, int index, Bool combo, Bool qu
  * OwnerListSetContents:  Set the list box's contents to the items in the given
  *   list.  Calls WindowBegin/EndUpdate to prevent flashing.
  */
-void OwnerListSetContents(HWND hwnd, list_type contents, Bool combo, Bool quan)
+void OwnerListSetContents(HWND hwnd, list_type contents, bool combo, bool quan)
 {
    list_type l;
 
@@ -113,7 +127,7 @@ void OwnerListSetContents(HWND hwnd, list_type contents, Bool combo, Bool quan)
 /*
  * OwnerListRemoveItem:  Remove the item from the list if it's there.
  */
-void OwnerListRemoveItem(HWND hList, ID id, Bool combo)
+void OwnerListRemoveItem(HWND hList, ID id, bool combo)
 {
    int i, num_items = combo ? ComboBox_GetCount(hList) : ListBox_GetCount(hList);
    object_node *obj;
@@ -138,7 +152,7 @@ void OwnerListRemoveItem(HWND hList, ID id, Bool combo)
  * OwnerListFindItem:  Return the index of the object with the given id in the
  *   given list box, or -1 if it's not there.
  */
-int OwnerListFindItem(HWND hList, ID id, Bool combo)
+int OwnerListFindItem(HWND hList, ID id, bool combo)
 {
    int i, num_items = combo ? ComboBox_GetCount(hList) : ListBox_GetCount(hList);
    object_node *obj;
@@ -158,7 +172,7 @@ int OwnerListFindItem(HWND hList, ID id, Bool combo)
  * OwnerListChangeItem:  Change attributes of given object in item list.
  *   We should reset icon & name string of the item in the list.
  */
-void OwnerListChangeItem(HWND hwnd, object_node *obj, Bool combo, Bool quan)
+void OwnerListChangeItem(HWND hwnd, object_node *obj, bool combo, bool quan)
 {
    int index;
 
@@ -174,7 +188,7 @@ void OwnerListChangeItem(HWND hwnd, object_node *obj, Bool combo, Bool quan)
  * OwnerListFindObject:  Return the object with the given id in the
  *   given list box, or NULL if it's not there.
  */
-object_node *OwnerListFindObject(HWND hList, ID id, Bool combo)
+object_node *OwnerListFindObject(HWND hList, ID id, bool combo)
 {
    int i, num_items = combo ? ComboBox_GetCount(hList) : ListBox_GetCount(hList);
    object_node *obj;
@@ -215,7 +229,7 @@ ID ItemListGetId(HWND hList)
 /* 
  * OwnerListCompareItem:  Message handler for item list boxes.
  */
-int OwnerListCompareItem(HWND hwnd, const COMPAREITEMSTRUCT *lpcis, Bool combo)
+int OwnerListCompareItem(HWND hwnd, const COMPAREITEMSTRUCT *lpcis, bool combo)
 {
    char buf1[MAXNAME], buf2[MAXNAME];
    
@@ -236,7 +250,7 @@ int OwnerListCompareItem(HWND hwnd, const COMPAREITEMSTRUCT *lpcis, Bool combo)
 /* 
  * OwnerListMeasureItem:  Message handler for item list boxes.
  */
-void OwnerListMeasureItem(HWND hwnd, MEASUREITEMSTRUCT *lpmis, Bool combo)
+void OwnerListMeasureItem(HWND hwnd, MEASUREITEMSTRUCT *lpmis, bool combo)
 {
    int style, height;
 
@@ -245,11 +259,11 @@ void OwnerListMeasureItem(HWND hwnd, MEASUREITEMSTRUCT *lpmis, Bool combo)
     * 2) Text height, plus borders
     */
 
-   style = GetWindowLong(hwnd, GWL_USERDATA);
+   style = GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
    height = GetFontHeight(GetFont(FONT_LIST));
    if (style & OD_DRAWOBJ)
-      height = max(LIST_OBJECT_HEIGHT, height);
+      height = std::max(LIST_OBJECT_HEIGHT, height);
    lpmis->itemHeight = height + 2 * LIST_OBJECT_TOP_BORDER;
 }
 /*****************************************************************************/
@@ -257,23 +271,21 @@ void OwnerListMeasureItem(HWND hwnd, MEASUREITEMSTRUCT *lpmis, Bool combo)
  * OwnerListDrawItem:  Message handler for item list boxes.  Return TRUE iff
  *   message is handled.
  */
-BOOL OwnerListDrawItem(HWND hwnd, const DRAWITEMSTRUCT *lpdis, Bool combo)
+BOOL OwnerListDrawItem(HWND hwnd, const DRAWITEMSTRUCT *lpdis, bool combo)
 {
-   {
-      int iOldCaretItem = (int)GetProp(lpdis->hwndItem, "Caret");
-      int iNewCaretItem = SendMessage(lpdis->hwndItem, LB_GETCARETINDEX, 0, 0L);
-      if (GetFocus() != lpdis->hwndItem)
-	 iNewCaretItem = -2;
-      if (iOldCaretItem != iNewCaretItem)
-	 InvalidateRect(lpdis->hwndItem, NULL, FALSE);
-      SetProp(lpdis->hwndItem, "Caret", (HANDLE)iNewCaretItem);
-   }
+  int iOldCaretItem = (intptr_t)GetProp(lpdis->hwndItem, "Caret");
+  int iNewCaretItem = SendMessage(lpdis->hwndItem, LB_GETCARETINDEX, 0, 0L);
+  if (GetFocus() != lpdis->hwndItem)
+    iNewCaretItem = -2;
+  if (iOldCaretItem != iNewCaretItem)
+    InvalidateRect(lpdis->hwndItem, NULL, FALSE);
+  SetProp(lpdis->hwndItem, "Caret", (HANDLE)iNewCaretItem);
 
    switch (lpdis->itemAction)
    {
    case ODA_SELECT:
    case ODA_DRAWENTIRE:
-      DrawOwnerListItem(lpdis, (Bool) (lpdis->itemState & ODS_SELECTED), combo);
+      DrawOwnerListItem(lpdis, (bool) (lpdis->itemState & ODS_SELECTED), combo);
       break;
 
    case ODA_FOCUS:
@@ -290,23 +302,21 @@ BOOL OwnerListDrawItem(HWND hwnd, const DRAWITEMSTRUCT *lpdis, Bool combo)
  *   Doesn't draw selected objects differently from unselected ones, essentially
  *   disabling selections.
  */
-BOOL OwnerListDrawItemNoSelect(HWND hwnd, const DRAWITEMSTRUCT *lpdis, Bool combo)
+BOOL OwnerListDrawItemNoSelect(HWND hwnd, const DRAWITEMSTRUCT *lpdis, bool combo)
 {
-   {
-      int iOldCaretItem = (int)GetProp(lpdis->hwndItem, "Caret");
-      int iNewCaretItem = SendMessage(lpdis->hwndItem, LB_GETCARETINDEX, 0, 0L);
-      if (GetFocus() != lpdis->hwndItem)
-	 iNewCaretItem = -2;
-      if (iOldCaretItem != iNewCaretItem)
-	 InvalidateRect(lpdis->hwndItem, NULL, FALSE);
-      SetProp(lpdis->hwndItem, "Caret", (HANDLE)iNewCaretItem);
-   }
+  int iOldCaretItem = (intptr_t)GetProp(lpdis->hwndItem, "Caret");
+  int iNewCaretItem = SendMessage(lpdis->hwndItem, LB_GETCARETINDEX, 0, 0L);
+  if (GetFocus() != lpdis->hwndItem)
+    iNewCaretItem = -2;
+  if (iOldCaretItem != iNewCaretItem)
+    InvalidateRect(lpdis->hwndItem, NULL, FALSE);
+  SetProp(lpdis->hwndItem, "Caret", (HANDLE)iNewCaretItem);
 
    switch (lpdis->itemAction)
    {
    case ODA_SELECT:
    case ODA_DRAWENTIRE:
-      DrawOwnerListItem(lpdis, False, combo);
+      DrawOwnerListItem(lpdis, false, combo);
       break;
 
    case ODA_FOCUS:
@@ -320,11 +330,11 @@ BOOL OwnerListDrawItemNoSelect(HWND hwnd, const DRAWITEMSTRUCT *lpdis, Bool comb
 /*
  * DrawOwnerListItem:  Draw an owner-draw list item, not including selection
  *   or focus.
- *   The item is drawn selected iff selected is True.
+ *   The item is drawn selected iff selected is true.
  *   (lpdis doesn't determine selection so that OwnerListDrawItemNoSelect can
  *    force item to be drawn without selection.)
  */
-void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, Bool selected, Bool combo)
+void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, bool selected, bool combo)
 {
    char buf[MAXNAME];
    object_node *obj;
@@ -334,27 +344,51 @@ void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, Bool selected, Bool combo)
    AREA area;
    COLORREF crColorText;
    HBRUSH hColorBg;
+   item_rarity_grade item_rarity_value = ITEM_RARITY_GRADE_NORMAL;
 
    if (!lpdis || !IsWindow(lpdis->hwndItem) || !IsWindowVisible(lpdis->hwndItem))
       return;
 
-   style = GetWindowLong(lpdis->hwndItem, GWL_USERDATA);
+   style = GetWindowLongPtr(lpdis->hwndItem, GWLP_USERDATA);
 
    /* Set text mode of DC to transparent */
    dc_state = SaveDC(lpdis->hDC);
    SetBkMode(lpdis->hDC, OPAQUE);
    obj = (object_node*)lpdis->itemData;
 
-   hColorBg = GetBrush(GetItemListColor(lpdis->hwndItem, (selected? SEL_BGD : UNSEL_BGD)));
+   hColorBg = GetBrush(
+               GetItemListColor(
+                  lpdis->hwndItem,
+                  (selected? SEL_BGD : UNSEL_BGD),
+                  ITEM_RARITY_GRADE_NORMAL));
+
    if ((style & OD_ONLYSEL) && (style & (OD_DRAWOBJ | OD_DRAWICON)))
-      hColorBg = GetBrush(GetItemListColor(lpdis->hwndItem, UNSEL_BGD));
+      hColorBg = GetBrush(
+                     GetItemListColor(
+                        lpdis->hwndItem,
+                        UNSEL_BGD,
+                        ITEM_RARITY_GRADE_NORMAL));
 
    FillRect(lpdis->hDC, &lpdis->rcItem, hColorBg);
 
    SetBkMode(lpdis->hDC, TRANSPARENT);
-   crColorText = GetColor(GetItemListColor(lpdis->hwndItem, (selected? SEL_FGD : UNSEL_FGD)));
+
+   if (style & (OD_DRAWOBJ | OD_DRAWICON) && obj != NULL)
+      item_rarity_value = (item_rarity_grade)obj->rarity;
+
+      crColorText = GetColor(
+                        GetItemListColor(
+                           lpdis->hwndItem,
+                           (selected ? SEL_FGD : UNSEL_FGD),
+                           item_rarity_value));
+
    if ((style & OD_ONLYSEL) && (style & (OD_DRAWOBJ | OD_DRAWICON)))
-	crColorText = GetColor(GetItemListColor(lpdis->hwndItem, UNSEL_FGD));
+      crColorText = GetColor(
+                        GetItemListColor(
+                           lpdis->hwndItem,
+                           UNSEL_FGD,
+                           item_rarity_value));
+
    if (lpdis->itemState & ODS_DISABLED)
 	crColorText = GetSysColor(COLOR_GRAYTEXT);
 
@@ -423,24 +457,32 @@ void DrawOwnerListItem(const DRAWITEMSTRUCT *lpdis, Bool selected, Bool combo)
 
    if (style & OD_COLORTEXT)
    {
-   	// get the color we'd prefer for this particular obj
-   	crColorText = GetPlayerNameColor(obj->flags,NULL);
-   	
-	// draw a black halo around the text just to ensure it is visible
-	SetTextColor(lpdis->hDC, RGB(0, 0, 0));
-        OffsetRect(&r, 1, 0);
-	DrawText(lpdis->hDC, buf, strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
-        OffsetRect(&r, -2, 0);
-	DrawText(lpdis->hDC, buf, strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
-        OffsetRect(&r, 1, 1);
-	DrawText(lpdis->hDC, buf, strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
-        OffsetRect(&r, 0, -2);
-	DrawText(lpdis->hDC, buf, strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
-        OffsetRect(&r, 0, 1);
+     // get the color we'd prefer for this particular obj
+     if (obj == NULL) 
+     {
+        crColorText = PALETTERGB(255, 255, 255);
+        debug(("Null pointer detected for obj in DrawOwnerListItem\n"));
+     }
+     else
+     {
+        crColorText = GetPlayerNameColor(obj->flags, NULL);
+     }
+     
+     // draw a black halo around the text just to ensure it is visible
+     SetTextColor(lpdis->hDC, RGB(0, 0, 0));
+     OffsetRect(&r, 1, 0);
+     DrawText(lpdis->hDC, buf, (int) strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+     OffsetRect(&r, -2, 0);
+     DrawText(lpdis->hDC, buf, (int) strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+     OffsetRect(&r, 1, 1);
+     DrawText(lpdis->hDC, buf, (int) strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+     OffsetRect(&r, 0, -2);
+     DrawText(lpdis->hDC, buf, (int) strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+     OffsetRect(&r, 0, 1);
    }
 
    SetTextColor(lpdis->hDC, crColorText);
-   DrawText(lpdis->hDC, buf, strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+   DrawText(lpdis->hDC, buf, (int) strlen(buf), &r, DT_VCENTER | DT_LEFT | DT_NOPREFIX);
 
    RestoreDC(lpdis->hDC, dc_state);
 

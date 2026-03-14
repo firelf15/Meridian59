@@ -43,19 +43,19 @@ typedef struct {
    int current_value;  // Current value
    int limit_value;    // Maximum value "current_value" can attain
    COLORREF colors[GRAPH_NUMCOLORS];
-   Bool button_down;
+   bool button_down;
    DWORD style;
 } GraphCtlStruct;
 
 extern HPALETTE hPal;
 
-static char *GraphCtlName = "BlakGraph";  /* Class name for graph controls; use in CreateWindowx */
+static const char *GraphCtlName = "BlakGraph";  /* Class name for graph controls; use in CreateWindowx */
 
 /* local function prototypes */
-long CALLBACK GraphCtlWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK GraphCtlWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static void GraphCtlLButtonDown(HWND hwnd, BOOL fDoubleClick, int x, int y, UINT keyFlags);
 static void GraphCtlLButtonUp(HWND hwnd, int x, int y, UINT keyFlags);
-static Bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct);
+static bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct);
 static void GraphCtlPaint(HWND hwnd);
 static void GraphCtlMouseMove(HWND hwnd, int x, int y, UINT keyFlags);
 static void GraphCtlKey(HWND hwnd, UINT vk, BOOL fDown, int cRepeat, UINT flags);
@@ -64,18 +64,18 @@ static void GraphCtlMoveBar(HWND hwnd, GraphCtlStruct *info, int x);
 /*****************************************************************************/
 /*
  * GraphCtlRegister:  One-time initialization to register graph control.
- *   Return True iff successful, or class already registered.
+ *   Return true iff successful, or class already registered.
  */
-Bool GraphCtlRegister(HINSTANCE hInst)
+bool GraphCtlRegister(HINSTANCE hInst)
 {
-   static Bool registered = False;
+   static bool registered = false;
    WNDCLASS wc;
 
    if (!registered)
    {
       wc.lpfnWndProc   = GraphCtlWndProc;
       wc.cbClsExtra    = 0;
-      wc.cbWndExtra    = sizeof(long);
+      wc.cbWndExtra    = sizeof(void *);
       wc.hInstance     = hInst;
       wc.hIcon         = NULL;
       wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
@@ -85,7 +85,7 @@ Bool GraphCtlRegister(HINSTANCE hInst)
       wc.style         = CS_DBLCLKS | CS_VREDRAW | CS_HREDRAW | CS_GLOBALCLASS;
       
       if (RegisterClass(&wc) != 0)
-	 registered = True;
+	 registered = true;
       else debug(("Registering graph class failed\n"));
    }
    return registered;
@@ -95,14 +95,14 @@ Bool GraphCtlRegister(HINSTANCE hInst)
  * GraphCtlUnregister:  Remove registration info for graph control.
  *   This function should only be called after all windows that contain graph
  *   controls have been destroyed, i.e. just before the program exits.
- *   Return True iff successful, or class already registered.
+ *   Return true iff successful, or class already registered.
  */
-Bool GraphCtlUnregister(HINSTANCE hInst)
+bool GraphCtlUnregister(HINSTANCE hInst)
 {
    return UnregisterClass(GraphCtlName, hInst);
 }
 /*****************************************************************************/
-char *GraphCtlGetClassName(void)
+const char *GraphCtlGetClassName(void)
 {
    return GraphCtlName;
 }
@@ -111,7 +111,7 @@ char *GraphCtlGetClassName(void)
 /*
  * GraphCtlWndProc:  Main window procedure for graph controls.
  */
-long CALLBACK GraphCtlWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK GraphCtlWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
    /* Send off control-specific messages */
    if (msg > WM_USER)
@@ -121,12 +121,12 @@ long CALLBACK GraphCtlWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
    {
    case WM_NCCREATE:
       /* Allocate memory for our per-control structure */
-      SetWindowLong(hwnd, GWL_GRAPHCTLMEM, (long) SafeMalloc(sizeof(GraphCtlStruct)));
+     SetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM, (LONG_PTR) SafeMalloc(sizeof(GraphCtlStruct)));
       return 1L;
 
    case WM_NCDESTROY:
       /* Free control's memory */
-      SafeFree((void *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM));
+      SafeFree((void *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM));
       break;
 
       HANDLE_MSG(hwnd, WM_CREATE, GraphCtlCreate);
@@ -166,12 +166,12 @@ long CALLBACK GraphCtlWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
    return 0L;
 }
 /*****************************************************************************/
-Bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct)
+bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct)
 {
    GraphCtlStruct *info;
    int i;
 
-   info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
 
    /* Start with default values for range */
    info->min_value     = GRAPHDEFMIN;
@@ -179,7 +179,7 @@ Bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct)
    info->current_value = GRAPHDEFVAL;
    info->limit_value   = GRAPHDEFLIMIT;
 
-   info->button_down = False;
+   info->button_down = false;
 
    /* Copy style bits */
    info->style = lpCreateStruct->style;
@@ -188,12 +188,12 @@ Bool GraphCtlCreate(HWND hwnd, LPCREATESTRUCT lpCreateStruct)
    for (i=0; i < GRAPH_NUMCOLORS; i++)
       info->colors[i] = (COLORREF) -1;
 
-   return True;
+   return true;
 }
 /*****************************************************************************/
 void GraphCtlLButtonDown(HWND hwnd, BOOL fDoubleClick, int x, int y, UINT keyFlags)
 {
-   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
 
    if (!(info->style & GCS_INPUT))
       return;
@@ -204,24 +204,24 @@ void GraphCtlLButtonDown(HWND hwnd, BOOL fDoubleClick, int x, int y, UINT keyFla
    GraphCtlMoveBar(hwnd, info, x);
 
    /* Capture mouse movements until button is released */
-   info->button_down = True;
+   info->button_down = true;
    SetCapture(hwnd);
 }
 /*****************************************************************************/
 void GraphCtlLButtonUp(HWND hwnd, int x, int y, UINT keyFlags)
 {
-   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
 
    if (!(info->style & GCS_INPUT))
       return;
 
-   info->button_down = False;
+   info->button_down = false;
    ReleaseCapture();
 }
 /*****************************************************************************/
 void GraphCtlMouseMove(HWND hwnd, int x, int y, UINT keyFlags)
 {
-   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
 
    if (!(info->style & GCS_INPUT) || !info->button_down)
       return;
@@ -231,7 +231,7 @@ void GraphCtlMouseMove(HWND hwnd, int x, int y, UINT keyFlags)
 /*****************************************************************************/
 void GraphCtlKey(HWND hwnd, UINT vk, BOOL fDown, int cRepeat, UINT flags)
 {
-   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
 
    if (!(info->style & GCS_INPUT) || !fDown)
       return;
@@ -266,11 +266,11 @@ void GraphCtlPaint(HWND hwnd)
    POINT triangle[3] = { { 0, 0}, {GRAPH_SLIDER_HEIGHT / 2, GRAPH_SLIDER_HEIGHT - 1},
 			 { - GRAPH_SLIDER_HEIGHT / 2, GRAPH_SLIDER_HEIGHT - 1} };
    POINT points[3];
-   Bool focus;
+   bool focus;
    char temp[MAXAMOUNT + 1];
 
 
-   info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
    hdc = BeginPaint(hwnd, &ps);
 
    SelectPalette(hdc, hPal, FALSE);
@@ -312,10 +312,10 @@ void GraphCtlPaint(HWND hwnd)
       bar_pos = (info->current_value - info->min_value) * 1000 / 
 	 (info->max_value - info->min_value);
       // Bring within legal range, in case current_value is outside limits
-      bar_pos = min(max(0, bar_pos), 1000);	    
+      bar_pos = std::clamp(bar_pos, 0L, 1000L);
    }
-   
-   bar_pos = bar_pos * (rect.right - rect.left - 2) / 1000 + rect.left + 1;  /* Skip border */ 
+
+   bar_pos = bar_pos * (rect.right - rect.left - 2) / 1000 + rect.left + 1;  /* Skip border */
    value_pos = bar_pos;
    bar_rect.left   = rect.left + 1;
    bar_rect.right  = bar_pos;
@@ -330,12 +330,12 @@ void GraphCtlPaint(HWND hwnd)
 
       bar_rect.left  = bar_pos;
 
-      bar_pos = (info->limit_value - info->min_value) * 1000 / 
+      bar_pos = (info->limit_value - info->min_value) * 1000 /
 	 (info->max_value - info->min_value);
       bar_pos = bar_pos * (rect.right - rect.left - 2) / 1000 + rect.left + 1;
 
       // Bring within legal range, in case limit_value is outside limits
-      bar_pos = min(max(0, bar_pos), 1000);
+      bar_pos = std::clamp(bar_pos, 0L, 1000L);
 
       bar_rect.right = bar_pos;
       limit_brush = CreateSolidBrush(colors[GRAPHCOLOR_LIMITBAR]);
@@ -351,12 +351,12 @@ void GraphCtlPaint(HWND hwnd)
    // Draw value of stat, if appropriate
    if (info->style & GCS_NUMBER)
    {
-      sprintf(temp, "%d", info->current_value);
+      snprintf(temp, sizeof(temp), "%d", info->current_value);
 
       SetBkMode(hdc, TRANSPARENT);
       SelectObject(hdc, GetFont(FONT_STATNUM));
       SetTextColor(hdc, GetColor(COLOR_BAR4));
-      GetTextExtentPoint32(hdc, temp, strlen(temp), &size);
+      GetTextExtentPoint32(hdc, temp, (int) strlen(temp), &size);
 
       // If there's room past the bar, put it there, otherwise put it in bar
       if (rect.right - value_pos > size.cx)
@@ -364,7 +364,7 @@ void GraphCtlPaint(HWND hwnd)
       else
 	 x = value_pos - size.cx - 1;
 
-      TextOut(hdc, x, max(0, (rect.bottom - size.cy) / 2), temp, strlen(temp));
+      TextOut(hdc, x, std::max(0L, (rect.bottom - size.cy) / 2), temp, (int) strlen(temp));
    }
    
    /* Draw slider if appropriate */
@@ -407,7 +407,7 @@ void GraphCtlPaint(HWND hwnd)
  */
 long GraphCtlMessages(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLong(hwnd, GWL_GRAPHCTLMEM);
+   GraphCtlStruct *info = (GraphCtlStruct *) GetWindowLongPtr(hwnd, GWL_GRAPHCTLMEM);
    COLORREF color;
    long retval;
 
@@ -517,7 +517,7 @@ void GraphCtlMoveBar(HWND hwnd, GraphCtlStruct *info, int x)
 	 (info->max_value - info->min_value) / (rect.right - rect.left - 2);
 
    /* Bring into range */
-   bar_value = max(min(bar_value, info->max_value), info->min_value);
+   bar_value = std::clamp(bar_value, info->min_value, info->max_value);
 
    SendMessage(hwnd, GRPH_POSSETUSER, 0, bar_value);
 }

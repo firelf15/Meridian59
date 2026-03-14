@@ -156,7 +156,7 @@ properties:
 
    pbSecretDoorOpen = FALSE
 
-   % pbBetrayed = TRUE anytime a guild member is the conquerer.
+   % pbBetrayed = TRUE anytime a guild member is the conqueror.
    pbBetrayed = FALSE
 
    % If this is true, a single player took over the guild hall (he probably
@@ -328,7 +328,7 @@ messages:
 
    ClaimGuildHall(oGuild = $, rep = $,password = $)
    {
-      local i, thisGuild;
+      local i;
 
       if rep = $
       {
@@ -525,7 +525,7 @@ messages:
 
    GuildLeverFlipped(who=$)
    {
-      local i, j, allies, members, bFound, conq_rsc, oldstatus;
+      local i, j, allies, members, conq_rsc, oldstatus;
 
       oldstatus = piStatus;
 
@@ -567,13 +567,6 @@ messages:
       }
 
       AppendTempString("~B~g]");
-      i = Send(SYS,@GetInvestigator);
-
-      if i <> $ and Send(i,@IsLoggedOn)
-      {
-         Send(i,@MsgSendUser,#message_rsc=Send(SYS,@GetPercentQRsc),
-              #parm1=getTempString(),#type1=0);
-      }
 
       Send(SYS,@MailSrGuardian,#from=self,#subject=Send(who,@GetTrueName),
            #body=getTempString());
@@ -833,7 +826,7 @@ messages:
       }
       else
       {
-         % The guild hall was conquered, but was unclaimed by the conquerers.
+         % The guild hall was conquered, but was unclaimed by the conquerors.
          % The guild hall is now available for anyone to rent again.
 
          if piStatus = STATUS_CONQUERED
@@ -1057,7 +1050,8 @@ messages:
 
       oGuild = Send(who,@GetGuild);
 
-      if oGuild = poGuild_owner
+      if (oGuild = poGuild_owner
+         OR Send(poGuild_owner,@IsAlly,#otherguild=oGuild))
          AND Send(oGuild,@GetRank,#who=who) >= RANK_SIR
       {
          return TRUE;
@@ -1257,7 +1251,7 @@ messages:
 
    SomethingHitHotPlate(what=$, hpid=$)
    {
-      local i, bFound;
+      local i;
 
       if what= $ OR hpid = $
       {
@@ -1364,14 +1358,8 @@ messages:
    {
       local i;
 
-      if poGuild_Owner = $
+      if Send(self,@CanEnter,#who=who)
       {
-         return TRUE;
-      }
-
-      if poGuild_owner = Send(who,@GetGuild)
-      {
-         % These players can always log into their own guild
          return TRUE;
       }
 

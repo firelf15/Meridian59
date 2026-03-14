@@ -18,7 +18,7 @@
 static int timer_id = 0;          /* current timer id, or 0 if none */
 static DWORD last_time;           /* Time when user last did something */
 
-void CALLBACK LogoffTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime);
+void CALLBACK LogoffTimerProc(HWND hwnd, UINT msg, UINT_PTR timer, DWORD dwTime);
 void LogoffTimerReset(void);
 
 /****************************************************************************/
@@ -27,7 +27,7 @@ void UserSetTimeout(void)
    DialogBox(hInst, MAKEINTRESOURCE(IDD_TIMEOUT), hMain, TimeoutDialogProc);
 }
 /****************************************************************************/
-BOOL CALLBACK TimeoutDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK TimeoutDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    static HWND hEnable, hMinutes;
    char temp[5];
@@ -53,7 +53,7 @@ BOOL CALLBACK TimeoutDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPara
       else 
       {
 	 CheckDlgButton(hDlg, IDC_TIMEOUTENABLE, TRUE);
-	 sprintf(temp, "%d", config.timeout);
+	 snprintf(temp, sizeof(temp), "%d", config.timeout);
       }
 
       Edit_SetText(hMinutes, temp);
@@ -62,11 +62,6 @@ BOOL CALLBACK TimeoutDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPara
    case WM_COMMAND:
       switch(GET_WM_COMMAND_ID(wParam, lParam))
       {
-#if 0
-      case IDC_TIMEOUTENABLE:
-	 EnableWindow(hMinutes, IsDlgButtonChecked(hDlg, IDC_TIMEOUTENABLE));
-	 break;
-#endif
 
       case IDOK:
 	 /* Get typed # of minutes, if enabled */
@@ -78,7 +73,7 @@ BOOL CALLBACK TimeoutDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPara
 	 else
 	 {
 	    Edit_GetText(hMinutes, temp, MAXMINUTES);
-	    config.timeout = max(atoi(temp), 0);
+	    config.timeout = std::max(atoi(temp), 0);
 	    if (state == STATE_GAME)
 	       LogoffTimerReset();
 	 }
@@ -117,7 +112,7 @@ void LogoffTimerStart(void)
    if (config.timeout == 0)
       return;
 
-   delay = (UINT) (min((long) ((long) config.timeout * MS_PER_MINUTE), MAXTIMERMS));
+   delay = (UINT) (std::min((long) ((long) config.timeout * MS_PER_MINUTE), (long)MAXTIMERMS));
    timer_id = SetTimer(NULL, 0, (UINT) delay, LogoffTimerProc);
    if (timer_id == 0)
    {
@@ -148,7 +143,7 @@ void LogoffTimerReset(void)
    LogoffTimerStart();
 }
 /************************************************************************/
-void CALLBACK LogoffTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime)
+void CALLBACK LogoffTimerProc(HWND hwnd, UINT msg, UINT_PTR timer, DWORD dwTime)
 {
    UINT delay;
    long elapsed;
@@ -164,7 +159,7 @@ void CALLBACK LogoffTimerProc(HWND hwnd, UINT msg, UINT timer, DWORD dwTime)
    }
 
    /* Restart timer */
-   delay = (UINT) (min((long) config.timeout * MS_PER_MINUTE - elapsed, MAXTIMERMS));
+   delay = (UINT) (std::min((long) config.timeout * MS_PER_MINUTE - elapsed, (long)MAXTIMERMS));
    timer_id = SetTimer(NULL, 0, (UINT) delay, LogoffTimerProc);   
    if (timer_id == 0)
       ClientError(hInst, hMain, IDS_NOTIMERS);

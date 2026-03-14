@@ -51,7 +51,7 @@ typedef struct {
    float     speed;							// keep history of speed to allow for auto correction
    Animate   animate;                      // Object animation when moving
    list_type overlays;                     // Overlays (and animation) to use when moving
-   Bool      move_animating;               // True when move animation is being displayed
+   bool      move_animating;               // True when move animation is being displayed
    BYTE      translation;                  // Palette translation when object is moving
    BYTE	     effect;			   // Display effect when object is moving
 } Motion;
@@ -79,6 +79,7 @@ typedef struct {
 		                     this field gives amount of object */
    DWORD     temp_amount;         /* Scratch field used when user is selecting amount of object */
    int       flags;               /* Flags describing various properties of objects */
+   item_rarity_grade rarity;      /* Used to draw object text differently based on rarity tiers */
    BYTE      translation;         // Palette translation information
    Animate   *animate;            /* Pointer to current animation (normal or motion animation) */
    list_type *overlays;           /* Pointer to current overlays (normal or motion animation) */
@@ -93,22 +94,25 @@ typedef struct {
    int	     lightAdjust;	  // For flicker and flash
    BYTE	     effect;		  // Display effect
    d_lighting	dLighting;			// new lighting flags for d3d client
+   int       flickerTime;         // Time accumulator for OF_FLICKERING animation (milliseconds)
+
 } object_node;
 
 typedef struct {
    object_node obj;
    long        angle;             /* Angle object is facing, in [0, NUMDEGREES) */
-   Bool        moving;            /* True iff object in the middle of an interpolated move */
+   bool        moving;            /* True iff object in the middle of an interpolated move */
    Motion      motion;            /* Current state of object's motion (includes position) */
    int         distance;          /* Distance from player to object; may not be valid */
-   Bool        visible;           // True when object is visible in current frame
+   bool        visible;           // True when object is visible in current frame
    int			boundingHeightAdjust;	// adjustment in height from overlays
 } room_contents_node;
 
-M59EXPORT Bool CompareIdObject(void *idnum, void *obj);
-Bool CompareId(void *id1, void *id2);
-Bool CompareIdRoomObject(void *idnum, void *obj);
+M59EXPORT bool CompareIdObject(void *idnum, void *obj);
+bool CompareId(void *id1, void *id2);
+bool CompareIdRoomObject(void *idnum, void *obj);
 int  CompareRoomObjectDistance(void* p1, void* p2);
+int CompareObjectNameAndNumber(void *obj1, void *obj2);
 list_type    OverlayListDestroy(list_type overlays);
 M59EXPORT object_node *ObjectGetBlank(void);
 M59EXPORT object_node *ObjectCopy(object_node *obj);
@@ -120,6 +124,6 @@ room_contents_node *RoomObjectDestroyAndFree(room_contents_node *r);
 M59EXPORT list_type    RoomObjectListDestroy(list_type obj_list);
 void         RoomObjectSetHeight(room_contents_node *r);
 void         ObjectStopAnimation(object_node *obj);
-void         RoomObjectSetAnimation(room_contents_node *r, Bool move);
+void         RoomObjectSetAnimation(room_contents_node *r, bool move);
 
 #endif /* #ifndef _OBJECT_H */

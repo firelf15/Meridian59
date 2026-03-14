@@ -7,13 +7,8 @@
 // Meridian is a registered trademark.
 #include "client.h"
 
-int	gNumCalls;
 extern int						gNumDPCalls;
 extern d3d_render_cache			gTempCache;
-
-extern LPDIRECT3DTEXTURE9		gpDLightAmbient;
-extern LPDIRECT3DTEXTURE9		gpDLightWhite;
-extern LPDIRECT3DTEXTURE9		gpDLightOrange;
 extern d3d_driver_profile		gD3DDriverProfile;
 
 void	D3DCacheLock(d3d_render_cache *pCache);
@@ -102,7 +97,7 @@ LPDIRECT3DTEXTURE9 D3DCacheTextureLookupSwizzled(d3d_texture_cache *pTextureCach
 			(pPacket->pDib->frame == pTexEntry->frame))
 		{
 			if ((pPacket->xLat0 == pTexEntry->xLat0) &&
-				(pPacket->xLat0 == pTexEntry->xLat0) &&
+				(pPacket->xLat1 == pTexEntry->xLat1) &&
 				(effect == pTexEntry->effects))
 			{
 				return pTexEntry->pTexture;

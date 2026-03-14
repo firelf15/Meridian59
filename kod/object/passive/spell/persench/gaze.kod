@@ -83,7 +83,7 @@ messages:
       return iSpellpower * 1000;
    }
 
-   GetStateValue(who = $, iSpellPower = 0)      
+   InitializeEnchantmentState(who = $, iSpellPower = 0)      
    {      
       Send(who,@AddDefenseModifier,#what=self);      
 
@@ -113,7 +113,7 @@ messages:
             oWeapon = send(what,@GetWeapon);
 
             % Ranged weapons don't always trigger the effect.
-            if IsClass(oWeapon,&RangedWeapon)
+            if oWeapon <> $ AND IsClass(oWeapon,&RangedWeapon)
                AND random(1,100) < 50
             {
                % No effect.

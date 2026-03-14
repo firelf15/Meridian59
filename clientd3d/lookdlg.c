@@ -25,7 +25,7 @@ static void LookListFreeContents(HWND hwndListBox);
 static BOOL LookInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam);
 static int  LookVkeyToItem(HWND hwnd, UINT key, HWND hwndListbox, int iCaret);
 static void LookCommand(HWND hDlg, int id, HWND hwndCtl, UINT codeNotify);
-static long CALLBACK LookProc(HWND hwnd, UINT message, UINT wParam, LONG lParam);
+static LRESULT CALLBACK LookProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 /*****************************************************************************/
 /* 
  * LookListSetContents: Set contents & highlight of list box in Look dialog.
@@ -56,7 +56,7 @@ void LookListSetContents(HWND hwndListBox, list_type contents, int flags)
       if (!(info->flags & LD_AMOUNTS) || !IsNumberObj(obj->id))
       {
          ListBox_SetSel(hwndListBox, TRUE, 0);
-         info->selected[0] = True;
+         info->selected[0] = true;
       }
    }
    else ListBox_SetCurSel(hwndListBox, 0); 
@@ -99,7 +99,7 @@ void LookListFreeContents(HWND hwndListBox)
  *    of the dialog is IDOK (i.e. the user hit OK)
  *   lParam of the WM_INITDIALOG message should be a pointer to a LookDialogStruct.
  */
-BOOL CALLBACK LookDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK LookDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    int index1,index2;
 
@@ -162,7 +162,7 @@ BOOL LookInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam)
    if (info->flags & LD_SORT)
    {
       style = GetWindowLong(info->hwndListBox, GWL_STYLE);
-      SetWindowLong(info->hwndListBox, GWL_STYLE, style | LBS_SORT);
+      SetWindowLongPtr(info->hwndListBox, GWL_STYLE, style | LBS_SORT);
    }
 
    if (!(info->flags & LD_AMOUNTS))
@@ -172,13 +172,13 @@ BOOL LookInitDialog(HWND hDlg, HWND hwndFocus, LPARAM lParam)
    }
    
    // Draw objects in owner-drawn list box
-   SetWindowLong(info->hwndListBox, GWL_USERDATA, OD_DRAWOBJ);
+   SetWindowLongPtr(info->hwndListBox, GWLP_USERDATA, OD_DRAWOBJ);
    
    SetWindowText(hDlg, info->title);  /* Set window's title */
 
    // Remember state of list box items
-   info->selected = (Bool *) SafeMalloc(list_length(info->contents) * sizeof(Bool));
-   memset(info->selected, 0, list_length(info->contents) * sizeof(Bool));
+   info->selected = (bool *) SafeMalloc(list_length(info->contents) * sizeof(bool));
+   memset(info->selected, 0, list_length(info->contents) * sizeof(bool));
    
    LookListSetContents(info->hwndListBox, info->contents, info->flags);
 
@@ -244,7 +244,7 @@ int LookVkeyToItem(HWND hwnd, UINT key, HWND hwndListbox, int iCaret)
 void LookSelChange(HWND hList)
 {
    int i, count;
-   Bool selected;
+   bool selected;
    
    count = ListBox_GetCount(hList);
    for (i=0; i < count; i++)
@@ -257,7 +257,7 @@ void LookSelChange(HWND hList)
          if (!GetAmountListBox(hList, i))
          {
             ListBox_SetSel(hList, FALSE, i);
-            info->selected[i] = False;
+            info->selected[i] = false;
             continue;
          }
       }
@@ -304,7 +304,7 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
       // Select all for number items
       for (i=0; i < num_entries; i++)
       {
-	 info->selected[i] = True;
+	 info->selected[i] = true;
 	 obj = (object_node *) ListBox_GetItemData(info->hwndListBox, i);
 	 if (IsNumberObj(obj->id))
 	    amount = obj->amount;
@@ -312,7 +312,7 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
 	    amount = 1;
 	 obj->temp_amount = amount;
 	 ListBox_DeleteString(info->hwndQuanList,i);
-	 sprintf(temp, "%d", amount);
+	 snprintf(temp, sizeof(temp), "%d", amount);
 	 ListBox_InsertString(info->hwndQuanList,i,temp);
 	 ListBox_SetItemData(info->hwndQuanList,i,amount);
       }
@@ -331,14 +331,11 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
 	    RequestLook(obj->id);
 	    SetDescParams(hDlg, DESC_NONE);
 	    ListBox_SetSel(info->hwndListBox, FALSE, index);
-	    info->selected[index] = False;
+	    info->selected[index] = false;
 	 }
 	 break;
 
       case LBN_SELCHANGE:
-#if 0
-	 LookSelChange(hwndCtl);
-#else
 	 index = ListBox_GetCurSel(info->hwndListBox);
 	 obj = (object_node *) ListBox_GetItemData(info->hwndListBox, index);
 	 WindowBeginUpdate(info->hwndQuanList);
@@ -349,7 +346,7 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
 	       amount = obj->amount;
 	    else
 	       amount = 1;
-	    sprintf(temp, "%d", amount);
+	    snprintf(temp, sizeof(temp), "%d", amount);
 	 }
 	 else
 	 {
@@ -364,7 +361,6 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
 	 ListBox_SetSel(info->hwndQuanList,FALSE,index);
 	 WindowEndUpdate(info->hwndQuanList);
 
-#endif
 	 break;
       }
       break;
@@ -396,7 +392,7 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
 		  ListBox_DeleteString(info->hwndQuanList,index);
 		  if (amount > 0)
 		  {
-		     sprintf(temp, "%d", amount);
+         snprintf(temp, sizeof(temp), "%d", amount);
 		     ListBox_InsertString(info->hwndQuanList, index, temp);
 		  }
 		  else
@@ -468,9 +464,9 @@ void LookCommand(HWND hDlg, int ctrl_id, HWND hwndCtl, UINT codeNotify)
  * InputNumber:  Input number from player.  Has default value, and minimum
  *   and maximum values for spin button.  Places the new dialog
  *   at (x, y) on hwnd. hParent is parent of dialog.
- *   Return True if ok.  False if cancel pressed.
+ *   Return true if ok.  false if cancel pressed.
  */
-Bool InputNumber(HWND hParent, HWND hwnd, int x, int y, int *returnValue, int startValue, int minValue, int maxValue)
+bool InputNumber(HWND hParent, HWND hwnd, int x, int y, int *returnValue, int startValue, int minValue, int maxValue)
 {
    RECT r;
    AmountDialogStruct dlg_info;
@@ -483,12 +479,12 @@ Bool InputNumber(HWND hParent, HWND hwnd, int x, int y, int *returnValue, int st
    dlg_info.minAmount = minValue;
    dlg_info.maxAmount = maxValue;
    
-   if (IDCANCEL == DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_AMOUNT), hParent,
+   if (IDCANCEL == SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_AMOUNT), hParent,
       AmountDialogProc, (LPARAM) &dlg_info))
-      return False;  /* Don't select item */
+      return false;  /* Don't select item */
 
    *returnValue = dlg_info.amount;
-   return True;
+   return true;
 }
 
 /************************************************************************/
@@ -496,57 +492,32 @@ Bool InputNumber(HWND hParent, HWND hwnd, int x, int y, int *returnValue, int st
  * GetAmount:  If appropriate, display amount dialog to get amount
  *   of given object at (x, y) on hwnd.
  *   hParent is parent of dialog.
- *   Return True if item isn't a number item, or user entered valid amount.
+ *   Return true if item isn't a number item, or user entered valid amount.
  */
-Bool GetAmount(HWND hParent, HWND hwnd, object_node *obj, int x, int y)
+bool GetAmount(HWND hParent, HWND hwnd, object_node *obj, int x, int y)
 {
    int value;
 
    if (!IsNumberObj(obj->id))
-      return True;
+      return true;
 
    if (!InputNumber(hParent,hwnd,x,y,&value,(int)obj->amount,1,(int)obj->amount))
    {
-      return False;
+      return false;
    }
    if (value == 0)
-      return False;
+      return false;
 
    obj->temp_amount = value;
-   return True;
-#if 0
-   RECT r;
-   AmountDialogStruct dlg_info;
-
-   if (!IsNumberObj(obj->id))
-      return True;
-
-   GetWindowRect(hwnd, &r);
-
-   dlg_info.x = r.left + x;
-   dlg_info.y = r.top + y;
-   dlg_info.amount = obj->amount;
-   
-   if (DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_AMOUNT), hParent,
-		      AmountDialogProc, (LPARAM) &dlg_info)
-       == IDCANCEL)
-      return False;  /* Don't select item */
-
-   obj->temp_amount = dlg_info.amount;
-
-   if (dlg_info.amount == 0)
-      return False;
-
-   return True;
-#endif
+   return true;
 }
 /************************************************************************/
 /*
  * GetAmountListBox:  If appropriate, display amount dialog to get amount
  *   of object at given index in given list box.
- *   Return True iff item should be selected (i.e. user entered valid #)
+ *   Return true iff item should be selected (i.e. user entered valid #)
  */
-Bool GetAmountListBox(HWND hList, int index)
+bool GetAmountListBox(HWND hList, int index)
 {
    object_node *obj;
    MEASUREITEMSTRUCT m;
@@ -554,7 +525,7 @@ Bool GetAmountListBox(HWND hList, int index)
    /* See if item requires an amount */
    obj = (object_node *) ListBox_GetItemData(hList, index);
    if (obj == NULL || !IsNumberObj(obj->id))
-      return True;
+      return true;
 
    /* Place amount dialog just beneath selected item */
    ItemListMeasureItem(hList, &m);
@@ -566,7 +537,7 @@ Bool GetAmountListBox(HWND hList, int index)
 /*
  * LookProc:  Subclassed window procedure for list box.
  */
-long CALLBACK LookProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
+LPARAM CALLBACK LookProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -603,7 +574,7 @@ long CALLBACK LookProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
 list_type DisplayLookList(HWND hParent, char *title, list_type l, int flags)
 {
    LookDialogStruct dlg_info;
-   Bool valid;
+   bool valid;
 
    /* Do nothing if list is empty, or if dialog is already up */
    if (l == NULL || hwndLookDialog != NULL)
@@ -625,14 +596,14 @@ list_type DisplayLookList(HWND hParent, char *title, list_type l, int flags)
 
    /* If multiple selections allowed, make list box multiple select */
    if (flags & LD_MULTIPLESEL)
-      valid = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTMULTIPLE), hParent,
+      valid = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTMULTIPLE), hParent,
 			     LookDialogProc, (LPARAM) &dlg_info);
    else 
       if (flags & LD_SORT)
-	 valid = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTSORTED), hParent,
+	 valid = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTSORTED), hParent,
 				LookDialogProc, (LPARAM) &dlg_info);
       else
-	 valid = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTSINGLE), hParent,
+	 valid = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ITEMLISTSINGLE), hParent,
 				LookDialogProc, (LPARAM) &dlg_info);
 
    if( info != NULL )

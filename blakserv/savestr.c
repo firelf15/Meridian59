@@ -20,16 +20,16 @@ FILE *strfile;
 /* local function prototypes */
 void SaveEachString(string_node *snod,int string_id);
 
-Bool SaveStrings(char *filename)
+bool SaveStrings(char *filename)
 {
    int write_int;
-   int written;
+   size_t written;
 
    strfile = fopen(filename, "wb");
    if (strfile == NULL)
    {
       eprintf("SaveStrings can't open %s to save strings!\n",filename);
-      return False;
+      return false;
    }
 
    write_int = 1; /* version */
@@ -45,12 +45,12 @@ Bool SaveStrings(char *filename)
    ForEachString(SaveEachString);
    fclose(strfile);
 
-   return True;
+   return true;
 }
 
 void SaveEachString(string_node *snod,int string_id)
 {
-   int written;
+   size_t written;
 
    written = fwrite(&string_id, 1, LEN_STR_ID, strfile);
    if (written != LEN_STR_ID)

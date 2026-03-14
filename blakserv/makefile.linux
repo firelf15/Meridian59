@@ -6,7 +6,7 @@ TOPDIR=..
 
 include $(TOPDIR)/common.mak.linux
 
-CFLAGS += -I $(BLAKINCLUDEDIR)
+CFLAGS += -I $(BLAKINCLUDEDIR) -I $(FMTLIBDIR)
 
 SOURCEDIR = .
 
@@ -63,7 +63,6 @@ OBJS =  \
 	$(OUTDIR)/version.obj \
 	$(OUTDIR)/systimer.obj \
 	$(OUTDIR)/memory.obj \
-	$(OUTDIR)/interface.obj \
 	$(OUTDIR)/intrlock.obj \
 	$(OUTDIR)/chanbuf.obj \
 	$(OUTDIR)/debug.obj \
@@ -78,10 +77,22 @@ OBJS =  \
 	$(OUTDIR)/block.obj \
 	$(OUTDIR)/stringinthash.obj \
 	$(OUTDIR)/intstringhash.obj \
-	$(OUTDIR)/files.obj \
-	$(OUTDIR)/critical_section.obj \
-	$(OUTDIR)/mutex_linux.obj \
+	$(OUTDIR)/sprocket.obj \
+	$(OUTDIR)/mutex_impl.obj \
+	$(OUTDIR)/fileutil.obj \
+	$(OUTDIR)/osd_linux.obj \
+	$(OUTDIR)/webhook.obj \
 
+
+ifdef BLAK_PLATFORM_MAC
+
+OBJS += $(OUTDIR)/osd_kqueue.obj
+
+else
+
+OBJS += $(OUTDIR)/osd_epoll.obj
+
+endif
 
 all : makedirs $(OUTDIR)/blakserv
 
@@ -96,8 +107,7 @@ $(OUTDIR)/md5.obj : $(TOPDIR)/util/md5.c
 
 $(OUTDIR)/blakserv: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ -c $(SOURCEDIR)/version.c
-	$(LINK)	$@ $(LIBS) $(LINKFLAGS)
+	$(LINK) $^ $(LIBS) -o$@ $(LINKFLAGS)
 	$(CP) $@ $(BLAKSERVRUNDIR)
-
 
 include $(TOPDIR)/rules.mak.linux

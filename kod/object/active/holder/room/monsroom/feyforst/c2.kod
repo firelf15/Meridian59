@@ -17,14 +17,14 @@ constants:
 resources:
 
    room_name_OutdoorsC2 = "The Vale of Sorrows"
-   room_OutdoorsC2 = C2.roo
+   room_OutdoorsC2 = c2.roo
    OutdoorsC2_music = walk7.mid
 
    c2_elhai_win = \
       "~IVictorious, the elhai invite all of those pure of heart to drink "
       "deeply from their mana node."
    c2_dirhai_win = \
-      "~ITriumphant in their dark victory, the dirhai invite any of similiar "
+      "~ITriumphant in their dark victory, the dirhai invite any of similar "
       "scruples to meld with the node."
    waterfall_sound_outdoorsc2 = wfall2.wav
 
@@ -182,9 +182,7 @@ messages:
    }
 
    SetRoomKarma(karma = $)
-   {
-      local karma1, karma2, karma3;
-   
+   {  
       % Change waterfall level.
       if (karma = KVERY_EVIL)
       {       

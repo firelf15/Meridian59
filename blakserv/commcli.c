@@ -35,12 +35,12 @@ void AddBlakodToPacket(val_type obj_size,val_type obj_data)
    int byte4;
    string_node *snod;
    resource_node *r;
-   val_type temp_val;
+   v0_val_type temp_val;
 
    if (obj_size.v.tag != TAG_INT)
    {
-      bprintf("AddBlakodToPacket looking for int, # of bytes, got %i,%i\n",
-	      obj_size.v.tag,obj_size.v.data);
+      bprintf("AddBlakodToPacket looking for int, # of bytes, got %s\n",
+              fmt(obj_size));
       return;
    }
 
@@ -56,7 +56,7 @@ void AddBlakodToPacket(val_type obj_size,val_type obj_data)
       snod = GetStringByID(obj_data.v.data);
       if (snod == NULL)
       {
-			bprintf("AddBlakodToPacket can't find string id %i\n",obj_data.v.data);
+			bprintf("AddBlakodToPacket can't find string id %" PRId64 "\n",obj_data.v.data);
 			break;
       }
       AddStringToPacket(snod->len_data,snod->data);
@@ -83,7 +83,8 @@ void AddBlakodToPacket(val_type obj_size,val_type obj_data)
 			AddIntToPacket(byte4);
 			break;
       case NUMBER_OBJECT :
-			temp_val.int_val = obj_data.int_val;
+			// Send as a 32 bit value with the "number object" tag in the high bits
+			temp_val.v.data = (int) obj_data.v.data;
 			temp_val.v.tag = CLIENT_TAG_NUMBER;
 			byte4 = temp_val.int_val;
 			AddIntToPacket(byte4);
@@ -91,14 +92,14 @@ void AddBlakodToPacket(val_type obj_size,val_type obj_data)
       case STRING_RESOURCE :
 			if (obj_data.v.tag != TAG_RESOURCE)
 			{
-				bprintf("AddBlakodToPacket can't send %i,%i as a resource/string\n",
-						  obj_data.v.tag,obj_data.v.data);
+				bprintf("AddBlakodToPacket can't send %s as a resource/string\n",
+                fmt(obj_data));
 				return;
 			}
 			r = GetResourceByID(obj_data.v.data);
 			if (r == NULL)
 			{
-				bprintf("AddBlakodToPacket can't find resource %i as a resource/string\n",
+				bprintf("AddBlakodToPacket can't find resource %" PRId64 " as a resource/string\n",
 						  obj_data.v.data);
 				return;
 			}
@@ -127,14 +128,12 @@ void AddIntToPacket(int byte4)
    blist = AddToBufferList(blist,&byte4,4);
 }
 
-void AddStringToPacket(int int_len,const char *ptr)
+void AddStringToPacket(size_t int_len,const char *ptr)
 {
-   unsigned short len;
-
-   len = int_len;
+  auto len = (unsigned short) int_len;
 
    blist = AddToBufferList(blist,&len,2);
-   blist = AddToBufferList(blist,(void *) ptr,int_len);
+   blist = AddToBufferList(blist,(void *) ptr, (int) int_len);
 }
 
 void SecurePacketBufferList(int session_id, buffer_node *bl)
@@ -142,7 +141,7 @@ void SecurePacketBufferList(int session_id, buffer_node *bl)
    session_node *s = GetSessionByID(session_id);
    const char* pRedbook;
 
-   if (!session_id || !s || !s->account || !s->account->account_id ||
+   if (!s || !s->account || !s->account->account_id ||
        s->conn.type == CONN_CONSOLE)
    {
       //dprintf("SecurePacketBufferList cannot find session %i", session_id);
@@ -168,7 +167,7 @@ void SecurePacketBufferList(int session_id, buffer_node *bl)
 	  s->sliding_token > pRedbook+strlen(pRedbook))
       {
 	 lprintf("SecurePacketBufferList lost redbook on session %i account %i (%s), may break session\n",
-	    session_id, s->account->account_id, s->account->name);
+           session_id, s->account->account_id, s->account->name.c_str());
 	 s->sliding_token = pRedbook;
       }
 

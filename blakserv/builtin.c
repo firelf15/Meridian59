@@ -72,9 +72,6 @@ void CreateBuiltIn(void)
 			
 			switch (bi_accounts[i].type)
 			{
-			case ACCOUNT_GUEST : 
-				object_id = CreateObject(GUEST_CLASS,2,p);
-				break;
 			case ACCOUNT_NORMAL :
 				object_id = CreateObject(USER_CLASS,2,p);
 				break;
@@ -91,7 +88,7 @@ void CreateBuiltIn(void)
 				break;
 			} 
 			
-			if (AssociateUser(account_id,object_id) == False)
+			if (AssociateUser(account_id,object_id) == false)
 				eprintf("CreateBuiltIn had AssociateUser fail, on account %i object %i\n",
 				account_id,object_id);
 		}

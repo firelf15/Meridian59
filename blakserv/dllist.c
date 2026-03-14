@@ -53,7 +53,7 @@ void AddDLlist(char *filename,int time,int file_type, int file_size)
       eprintf("AddDLlist got bad time %i for file %s\n",time,filename);
 
    new_node = (dllist_node *)AllocateMemory(MALLOC_ID_DLLIST,sizeof(dllist_node));
-   strcpy(new_node->fname,filename);
+   strncpy(new_node->fname,filename, sizeof(new_node->fname));
 
    new_node->file_type = file_type;
    new_node->last_mod_time = time;
@@ -200,7 +200,9 @@ void AddBuiltInDLlist()
    
    char *t1,*t2,*t3,*t4;
 
-   sprintf(filename,"%s%s",ConfigStr(PATH_PACKAGE_FILE),PACKAGE_FILE);
+   static const char *WHITESPACE = " \t\r\n";
+   
+   snprintf(filename, sizeof(filename), "%s%s",ConfigStr(PATH_PACKAGE_FILE),PACKAGE_FILE);
    
    if ((packagefile = fopen(filename,"rt")) == NULL)
    {
@@ -214,7 +216,7 @@ void AddBuiltInDLlist()
    {
       lineno++;
 
-      t1 = strtok(line," \t\n");
+      t1 = strtok(line,WHITESPACE);
 
       if (t1 == NULL)	/* ignore blank lines */
 	 continue;
@@ -222,19 +224,19 @@ void AddBuiltInDLlist()
       if (*t1 == '#')   /* ignore commentns */
 	 continue;
 
-      t2 = strtok(NULL," \t\n");
+      t2 = strtok(NULL,WHITESPACE);
       if (t2 == NULL || sscanf(t2,"%i",&time) != 1)
       {
 	 eprintf("AddBuiltInDLlist (%i) can't read time\n",lineno);
 	 continue;
       }
-      t3 = strtok(NULL," \t\n");
+      t3 = strtok(NULL,WHITESPACE);
       if (t3 == NULL || sscanf(t3,"%i",&type) != 1)
       {
 	 eprintf("AddBuiltInDLlist (%i) can't read type\n",lineno);
 	 continue;
       }
-      t4 = strtok(NULL," \t\n");
+      t4 = strtok(NULL,WHITESPACE);
       if (t4 == NULL || sscanf(t4,"%i",&size) != 1)
       {
 	 size = 1024; // default file size

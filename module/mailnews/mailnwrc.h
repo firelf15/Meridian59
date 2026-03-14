@@ -57,8 +57,11 @@
 #define IDS_NHEADER3                    53
 #define IDS_SUBJECT_ENGLISH             54
 #define IDS_SUBJECT_GERMAN              55
+#define IDS_SUBJECT_PORTUGUESE          56
 #define IDI_LETTER                      101
 #define IDB_MAILBOX                     102
+#define IDB_UPARROW                     103
+#define IDB_DOWNARROW                   104
 #define IDD_MAILSEND                    111
 #define IDD_NEWSREAD                    144
 #define IDD_NEWSPOST                    145
@@ -80,13 +83,14 @@
 #define IDC_GROUPNAME                   1121
 #define IDC_REPLYALL                    1124
 #define IDC_REPLYMAIL                   1125
+#define IDS_DELETEMULTIPLE              1126
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        103
+#define _APS_NEXT_RESOURCE_VALUE        105
 #define _APS_NEXT_COMMAND_VALUE         40001
 #define _APS_NEXT_CONTROL_VALUE         1006
 #define _APS_NEXT_SYMED_VALUE           101

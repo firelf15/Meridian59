@@ -35,10 +35,15 @@
 extern client_message msg_table[];
 
 extern ClientInfo *cinfo;         // Holds data passed from main client
-extern Bool exiting;              // True when module is exiting and should be unloaded
+extern bool exiting;              // true when module is exiting and should be unloaded
 
 extern HINSTANCE hInst;  // module handle
 
+// Declare global HBITMAP objects
+extern HBITMAP hbmUpArrow;
+extern HBITMAP hbmDownArrow;
+
 bool IsNameInIgnoreList(const char *name);
+void ListView_SetHeaderSortImage(HWND hListView, int sortedColumn, bool sortAscending);
 
 #endif /* #ifndef _MAILNEWS_H */

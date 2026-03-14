@@ -35,13 +35,13 @@ extern client_message admin_msg_table[];
 extern HINSTANCE   hInst;          // Handle of this DLL
 extern HWND        hAdminDlg;
 extern ClientInfo *c;              // Holds data passed from main client
-extern Bool        exiting;        // True when module is exiting and should be unloaded
+extern bool        exiting;        // True when module is exiting and should be unloaded
 
 extern char        command[];      // Admin command typed by user
 extern int         current_obj;    // Object we're currently displaying, if any
 
-extern BOOL CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-extern BOOL CALLBACK AdminValueDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+extern INT_PTR CALLBACK AdminValueDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 extern void AdminNewLine(char *str);
 extern void AdminDisplayOwner(int num);
 extern void AdminDisplayObject(int num, char *class_name);

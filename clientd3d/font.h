@@ -27,18 +27,21 @@ enum {
    FONT_MAP_TITLE,
    FONT_MAP_LABEL,
    FONT_MAP_TEXT,
+   FONT_MAP_ANNOTATIONS,    /* For annotations on the map & mini-map */
    MAXFONTS,
 };
 
-void FontsCreate(Bool use_defaults);
+void FontsCreate(bool use_defaults);
 void FontsDestroy(void);
 M59EXPORT HFONT GetFont(WORD font);
 void FontsSave(void);
 void FontsRestoreDefaults(void);
-Bool GetLogFont(WORD fontnum, LOGFONT *pLogFont);
 
 void UserSelectFont(WORD font);
 M59EXPORT int GetFontHeight(HFONT hFont);
 LOGFONT *GetLogfont(int fontNum);
+
+// Return a new font that's the given font scaled by the given factor.
+HFONT FontsGetScaledFont(HFONT hFont, float scale);
 
 #endif /* #ifndef _FONT_H */

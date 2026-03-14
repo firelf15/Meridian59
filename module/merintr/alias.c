@@ -26,7 +26,7 @@ typedef struct
 {
    WORD  key;       // Key to assign alias to
    char  text[MAX_ALIASLEN + 1];      // Text command for alias
-   Bool  cr;        // True iff alias is a self-contained command (add CR to end)
+   bool  cr;        // true iff alias is a self-contained command (add CR to end)
 } HotkeyAlias;
 
 typedef struct
@@ -37,18 +37,18 @@ typedef struct
 
 static HotkeyAlias aliases[] =
 {
-   { VK_F1,   "help",     True, },
-   { VK_F2,   "rest",     True, },
-   { VK_F3,   "stand",    True, },
-   { VK_F4,   "neutral",  True, },
-   { VK_F5,   "happy",    True, },
-   { VK_F6,   "sad",      True, },
-   { VK_F7,   "wry",      True, },
-   { VK_F8,   "wave",     True, },
-   { VK_F9,   "point",    True, },
-   { VK_F10,  "addgroup", True, },
-   { VK_F11,  "mail",     True, },
-   { VK_F12,  "quit",     True, },
+   { VK_F1,   "help",     true, },
+   { VK_F2,   "rest",     true, },
+   { VK_F3,   "stand",    true, },
+   { VK_F4,   "neutral",  true, },
+   { VK_F5,   "happy",    true, },
+   { VK_F6,   "sad",      true, },
+   { VK_F7,   "wry",      true, },
+   { VK_F8,   "wave",     true, },
+   { VK_F9,   "point",    true, },
+   { VK_F10,  "addgroup", true, },
+   { VK_F11,  "mail",     true, },
+   { VK_F12,  "quit",     true, },
 };
 
 static VerbAlias* _apVerbAliases = NULL;
@@ -56,7 +56,7 @@ static int _nVerbAliases = 0;
 static int _nAllocated = 0;
 #define CHUNKSIZE 10
 
-static char* _szDefaultVerbAliases =
+static const char* _szDefaultVerbAliases =
    "chuckle=emote chuckles.\0"
    "giggle=emote giggles.\0"
    "hail=tellguild Hail Guildmembers!\0"
@@ -79,10 +79,10 @@ static HWND hAliasDialog = NULL;
 static HWND hAliasDialog1 = NULL;
 static HWND hAliasDialog2 = NULL;
 
-static BOOL CALLBACK AliasDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
-static BOOL CALLBACK VerbAliasDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
-
-extern Bool	gbClassicKeys;
+static INT_PTR CALLBACK AliasDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static INT_PTR CALLBACK VerbAliasDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static void UpdateKeyTables(int key, WORD command, char *text);
+extern bool	gbClassicKeys;
 extern player_info *GetPlayer(void);
 
 /****************************************************************************/
@@ -91,11 +91,11 @@ extern player_info *GetPlayer(void);
  */
 void AliasInit(void)
 {
-   int i, len;
+   int i;
    char temp[10];
    char	fullSection[255];
    char	destName[128];
-   char	*srcName;
+   const char *srcName;
    WORD command;
    player_info	*playerInfo;
 
@@ -113,7 +113,7 @@ void AliasInit(void)
       srcName = "<Unknown>";
    else
       srcName = LookupNameRsc(cinfo->player->name_res);
-   len = strlen(srcName);
+   int len = (int) strlen(srcName);
 
    for (i = 0; i < len; i++)
    {
@@ -134,32 +134,26 @@ void AliasInit(void)
       aliases[i].text, MAX_ALIASLEN, cinfo->ini_file);
 
       // Check for CR
-      len = strlen(aliases[i].text);
+    len = (int) strlen(aliases[i].text);
       if (len > 0 && aliases[i].text[len - 1] == '~')
       {
 	 command = A_TEXTINSERT;
 	 aliases[i].text[len - 1] = 0;
-	 aliases[i].cr = False;
+	 aliases[i].cr = false;
       }
       else 
       {
 	 command = A_TEXTCOMMAND;
-	 aliases[i].cr = True;
+	 aliases[i].cr = true;
       }
 
-	  if (gbClassicKeys)
-		AliasSetKey(interface_key_table, aliases[i].key, KEY_NONE, command, aliases[i].text);
-	  else
-		AliasSetKey(gCustomKeys, aliases[i].key, KEY_NONE, command, aliases[i].text);
-
-      AliasSetKey(inventory_key_table, aliases[i].key, KEY_NONE, command, aliases[i].text);
+      UpdateKeyTables(aliases[i].key, command, aliases[i].text);
    }
 }
 
 void CmdAliasInit(void)
 {
-	// Command Aliases
-    char* pVerb;
+    // Command Aliases
     char* pCommand;
     int nAllocated = 1024;
     char* pSection = (char *) SafeMalloc(nAllocated);
@@ -189,10 +183,14 @@ void CmdAliasInit(void)
        }
     }
     
-    pVerb = pSection;
     if (!pSection || !pSection[0])
-       pVerb = _szDefaultVerbAliases;
-    
+    {
+      if (pSection)
+        SafeFree(pSection);
+      pSection = strdup(_szDefaultVerbAliases);
+    }
+
+    char *pVerb = pSection;
     while (*pVerb)
     {
        pCommand = strtok(pVerb, "=");
@@ -229,12 +227,13 @@ void AliasSave(void)
    char	destName[128];
    char	*srcName;
    player_info	*playerInfo;
+   WORD command;
 
    destName[0] = '\0';
 
    playerInfo = GetPlayerInfo();
    srcName = LookupNameRsc(cinfo->player->name_res);
-   len = strlen(srcName);
+   len = (int) strlen(srcName);
 
    for (i = 0; i < len; i++)
    {
@@ -252,11 +251,18 @@ void AliasSave(void)
       sprintf(temp, "F%d", i + 1);
 
       if (aliases[i].cr)
-	 strcpy(text, aliases[i].text);
+      {
+	      strcpy(text, aliases[i].text);
+         command = A_TEXTCOMMAND;
+      }
       else
-	 sprintf(text, "%s~", aliases[i].text);
-
+      {
+         sprintf(text, "%s~", aliases[i].text);
+         command = A_TEXTINSERT;
+      }
       WritePrivateProfileString(fullSection, temp, text, cinfo->ini_file);
+
+      UpdateKeyTables(aliases[i].key, command, aliases[i].text);
    }
 
    strcpy(fullSection, command_section);
@@ -435,8 +441,6 @@ BOOL ParseVerbAlias(char* pInput)
 
    pArgs = strtok(pVerb, " \t\r\n");
    pArgs = strtok(NULL, "\r\n");
-   if (!pArgs)
-      pArgs = "";
 
    for (i = 0; i < _nVerbAliases; i++)
    {
@@ -471,18 +475,16 @@ BOOL ParseVerbAlias(char* pInput)
    //
    pVerb = _apVerbAliases[iMatch].text;
    strcpy(accum, pVerb);
+   char* pBefore = pVerb;
+   char* pAfter = strstr(pVerb, "~~");
+   
+   if (pAfter && pArgs && (strlen(pVerb)+strlen(pArgs) < MAXSAY))
    {
-      char* pBefore = pVerb;
-      char* pAfter = strstr(pVerb, "~~");
-
-      if (pAfter && (strlen(pVerb)+strlen(pArgs) < MAXSAY))
-      {
-	 strcpy(accum+(pAfter-pBefore), pArgs);
-	 strcat(accum, pAfter+2);
-	 pVerb = accum;
-      }
+     strcpy(accum+(pAfter-pBefore), pArgs);
+     strcat(accum, pAfter+2);
+     pVerb = accum;
    }
-
+   
    bInvalid = ModuleEvent(EVENT_TEXTCOMMAND, accum);
    if (bInvalid)
       GameMessage(GetString(hInst, IDS_INVALIDALIAS));
@@ -547,7 +549,7 @@ void CommandAlias(char *args)
 /*
  * AliasDialogProc:  Dialog procedure for alias dialog.
  */
-BOOL CALLBACK AliasDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK AliasDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    int i;
    HWND hEdit;
@@ -648,7 +650,7 @@ int ListView_GetSelection(HWND hList)
 /*
  * VerbAliasDialogProc:  Dialog procedure for command verb alias dialog.
  */
-BOOL CALLBACK VerbAliasDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK VerbAliasDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -954,4 +956,19 @@ BOOL CALLBACK VerbAliasDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lPa
    }
    
    return FALSE;
+}
+
+/****************************************************************************/
+/*
+ * UpdateKeyTables:  Update either the classic or custom keys interfaces table
+ * depending on the client configuration, then also update the inventory key
+ * table so that the hotkey aliases work when the user is in that child window
+ */
+static void UpdateKeyTables(int key, WORD command, char *text)
+{
+   if (gbClassicKeys) 
+      AliasSetKey(interface_key_table, key, KEY_NONE, command, text);
+   else
+      AliasSetKey(gCustomKeys, key, KEY_NONE, command, text);
+   AliasSetKey(inventory_key_table, key, KEY_NONE, command, text);
 }

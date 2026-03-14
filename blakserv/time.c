@@ -21,23 +21,17 @@
 
 void InitTime()
 {
-/* I use the multimedia timers (set to accuracy of 1ms here) because
-for millisecond timing because they are more accurate than 
-	GetTickCount().
-	
-	timeBeginPeriod(1);
-    */
 }
 
-int GetTime()
+time_t GetTime()
 {
-	return (int)time(NULL);
+	return time(NULL);
 }
 
-const char * TimeStr(time_t time)
+std::string TimeStr(time_t time)
 {
 	struct tm *tm_time;
-	static char s[80];
+	char s[80];
 	const char *time_format;
 	
 	if (time == 0)
@@ -48,10 +42,7 @@ const char * TimeStr(time_t time)
 	if (tm_time == NULL)
 		return "Invalid Time";
 	
-	if (tm_time->tm_mday < 10)
-		time_format = "%b  %#d %Y %H:%M:%S";
-	else
-		time_format = "%b %#d %Y %H:%M:%S";
+  time_format = "%b %d %Y %H:%M:%S";
 	
 	if (strftime(s,sizeof(s),time_format,tm_time) == 0)
 		return "Time string too long";
@@ -59,10 +50,10 @@ const char * TimeStr(time_t time)
 	return s;
 }
 
-const char * ShortTimeStr(time_t time)
+std::string ShortTimeStr(time_t time)
 {
 	struct tm *tm_time;
-	static char s[80];
+	char s[80];
 	const char *time_format;
 	
 	if (time == 0)
@@ -81,10 +72,10 @@ const char * ShortTimeStr(time_t time)
 	return s;
 }
 
-const char * FileTimeStr(time_t time)
+std::string FileTimeStr(time_t time)
 {
 	struct tm *tm_time;
-	static char s[80];
+	char s[80];
 	
 	if (time == 0)
 		return "Never";
@@ -97,30 +88,29 @@ const char * FileTimeStr(time_t time)
 	return s;
 }
 
-const char * RelativeTimeStr(int time)
+std::string RelativeTimeStr(time_t time)
 {
-	static char s[80];
+  std::string s;
 	int amount;
-	s[0] = 0;
 	
-	amount = time / (24*60*60);
+	amount = (int) (time / (24*60*60));
 	if (amount != 0)
-		sprintf(s,"%i day%s ",amount,amount != 1 ? "s" : "");
+    s += std::to_string(amount) + " day" + (amount != 1 ? "s" : "") + " ";
 	
 	amount = (time / (60*60)) % 24;
 	if (amount != 0)
-		sprintf(s+strlen(s),"%i hour%s ",amount,amount != 1 ? "s" : "");
+    s += std::to_string(amount) + " hour" + (amount != 1 ? "s" : "") + " ";
 	
 	amount = (time / 60) % 60;
 	if (amount != 0)
-		sprintf(s+strlen(s),"%i minute%s ",amount,amount != 1 ? "s" : "");
+    s += std::to_string(amount) + " minute" + (amount != 1 ? "s" : "") + " ";
 	
 	amount = time % 60;
 	if (amount != 0)
-		sprintf(s+strlen(s),"%i second%s",amount,amount != 1 ? "s" : "");
+    s += std::to_string(amount) + " second" + (amount != 1 ? "s" : "") + " ";
 	
-	if (s[0] == 0)
-		sprintf(s,"0 sec");
+	if (s.empty())
+		s = "0 sec";
 	
 	return s;
 }

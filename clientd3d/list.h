@@ -20,7 +20,7 @@ typedef struct _node {
 } *list_type, list_struct;
 
 /* procedure to compare two list entries:  return nonzero iff entries are equal */
-typedef Bool (*CompareProc)(void *, void *);
+typedef bool (*CompareProc)(void *, void *);
 
 /* procedure to compare two list entries:  return zero iff entries are equal,
  *  < 0 if first entry is smaller, > 0 if first entry is larger.
@@ -44,5 +44,8 @@ M59EXPORT list_type list_destroy(list_type l);
 M59EXPORT int       list_length(list_type l);
 M59EXPORT list_type list_move_to_front(list_type l, void *data, CompareProc compare);
 M59EXPORT list_type list_add_sorted_item(list_type l, void *newdata, SortProc compare);
+M59EXPORT int       list_get_position(list_type l, void *data, CompareProc compare);
+M59EXPORT list_type list_move_item(list_type l, int source_index, int dest_index);
+
 
 #endif /* #ifndef _LIST_H */

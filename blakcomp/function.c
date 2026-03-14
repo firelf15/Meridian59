@@ -38,6 +38,7 @@ function_type Functions[] = {
 {"SetNth",              SETNTH,          AEXPRESSION,   AEXPRESSION,    AEXPRESSION, ANONE},
 {"DelListElem",         DELLISTELEM,     AEXPRESSION,   AEXPRESSION,    ANONE},
 {"FindListElem",         FINDLISTELEM,     AEXPRESSION,   AEXPRESSION,    ANONE},
+{"MoveListElem",       MOVELISTELEM,     AEXPRESSION,   AEXPRESSION, AEXPRESSION, ANONE},
 {"Random",		RANDOM,		 AEXPRESSION,	AEXPRESSION,	ANONE},
 {"AddPacket",           ADDPACKET,       AEXPRESSIONS,  ANONE},
 {"SendPacket",          SENDPACKET,      AEXPRESSION,   ANONE},
@@ -49,6 +50,7 @@ function_type Functions[] = {
 {"StringEqual",		STRINGEQUAL,	 AEXPRESSION, 	AEXPRESSION,	ANONE},
 {"StringContain",	STRINGCONTAIN,	 AEXPRESSION, 	AEXPRESSION,	ANONE},
 {"StringSubstitute",	STRINGSUBSTITUTE,AEXPRESSION, 	AEXPRESSION,	AEXPRESSION,	ANONE},
+{"BuildString",         BUILDSTRING,     AEXPRESSION,   AEXPRESSIONS,    ANONE},
 {"StringLength",        STRINGLENGTH,    AEXPRESSION,   ANONE},
 {"StringConsistsOf",    STRINGCONSISTSOF,AEXPRESSION,   AEXPRESSION,    ANONE},
 {"CreateTimer",         CREATETIMER,     AEXPRESSION,   AEXPRESSION,    AEXPRESSION, ANONE},
@@ -63,6 +65,7 @@ function_type Functions[] = {
     AEXPRESSION,AEXPRESSION,ANONE},
 {"CanMoveInRoomFine",CANMOVEINROOMFINE,AEXPRESSION,AEXPRESSION,AEXPRESSION,
     AEXPRESSION,AEXPRESSION,ANONE},
+{"IsPointInSector", POINTINSECTOR, AEXPRESSION, AEXPRESSION, AEXPRESSION, AEXPRESSION, AEXPRESSION, AEXPRESSION, ANONE},
 {"SetResource",         SETRESOURCE,     AEXPRESSION,   AEXPRESSION,  ANONE},
 {"Post",		POSTMESSAGE,   	 AEXPRESSION,	AEXPRESSION, 	ASETTINGS, ANONE},
 {"Abs",                 ABS,             AEXPRESSION,   ANONE},
@@ -84,6 +87,7 @@ function_type Functions[] = {
 {"RecycleUser",         RECYCLEUSER,     AEXPRESSION,   ANONE},
 {"MinigameNumberToString", MINIGAMENUMBERTOSTRING,     AEXPRESSION,   AEXPRESSION,   ANONE},
 {"MinigameStringToNumber", MINIGAMESTRINGTONUMBER,     AEXPRESSION,   ANONE},
+{"SendWebhook",         SENDWEBHOOK,     AEXPRESSIONS,   ANONE},
    };
 
 int numfuncs = (sizeof(Functions)/sizeof(function_type));

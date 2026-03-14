@@ -15,7 +15,7 @@
 #define MAX_CONSTANT 40                  // Maximum length of a constant's name
 
 HWND hAdminDlg, hAdminMoveDlg;
-Bool hidden;         // True when dialog exists but is hidden
+bool hidden;         // true when dialog exists but is hidden
 
 static RECT   dlg_rect;                  // Screen position of dialog
 static HWND   hInput, hText, hUserList;  // Dialog controls
@@ -57,11 +57,11 @@ static int owner;       // Owner of currently displayed object
 /* local function prototypes */
 static ID AdminGetCurrentUser(HWND hList);
 static void AdminDlgCommand(HWND hDlg, int cmd_id, HWND hwndCtl, UINT codeNotify);
-static Bool AdminGetString(HWND hParent, char *buf);
-static BOOL CALLBACK AdminMoveDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-static BOOL CALLBACK AdminStringDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static bool AdminGetString(HWND hParent, char *buf);
+static INT_PTR CALLBACK AdminMoveDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+static INT_PTR CALLBACK AdminStringDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 /****************************************************************************/
-BOOL CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    char *new_str, *name;
    int txtlen, new_len, index, add;
@@ -108,7 +108,7 @@ BOOL CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
    case BK_GOTTEXT:   /* lParam is text to add to edit box */
       // Add new text to text window
       new_str = (char *) lParam;
-      new_len = strlen(new_str);
+      new_len = (int) strlen(new_str);
 
       WindowBeginUpdate(hText);
 
@@ -127,7 +127,7 @@ BOOL CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
       Edit_ReplaceSel(hText, new_str);
       
       /* Scroll new string into view */
-      EditBoxScroll(hText, False);
+      EditBoxScroll(hText, false);
       
       WindowEndUpdate(hText);
 
@@ -140,15 +140,15 @@ BOOL CALLBACK AdminDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPa
       Edit_SetText(hInput, new_str);
       ComboBox_SetEditSel(hInput, 0, -1);
 
-      add = False;
+      add = false;
       /* Add command to combo list box, if not the same as the prev. command */
       if (ComboBox_GetCount(hInput) == 0)
-	 add = True;
+	 add = true;
       else
       {
 	 ComboBox_GetLBText(hInput, 0, temp_command);
 	 if (stricmp(new_str, temp_command))
-	    add = True;
+	    add = true;
       }
       if (add)
 	 ComboBox_InsertString(hInput, 0, new_str);
@@ -280,7 +280,7 @@ void AdminDlgCommand(HWND hDlg, int cmd_id, HWND hwndCtl, UINT codeNotify)
 
       index = ListBox_GetCurSel(hwndCtl);
       if (index != LB_ERR)
-	 DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ADMINVALUE), hDlg, AdminValueDialogProc, index);
+	 SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ADMINVALUE), hDlg, AdminValueDialogProc, index);
       break;
 
    case IDC_OWNERBUTTON:
@@ -359,7 +359,7 @@ void AdminDlgCommand(HWND hDlg, int cmd_id, HWND hwndCtl, UINT codeNotify)
       
    case IDCANCEL:
       ShowWindow(hDlg, SW_HIDE);
-      hidden = True;
+      hidden = true;
       break;
    }
 }
@@ -421,7 +421,7 @@ void AdminDisplayObject(int num, char *class_name)
 /*
  * AdminMoveDialogProc:  Dialog procedure for moving an object.
  */
-BOOL CALLBACK AdminMoveDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK AdminMoveDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    char temp[MAXAMOUNT];
    char row[MAXAMOUNT + 1], col[MAXAMOUNT + 1], fine_row[MAXAMOUNT + 1], fine_col[MAXAMOUNT + 1];
@@ -553,19 +553,19 @@ BOOL CALLBACK AdminMoveDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM
 /****************************************************************************/
 /*
  * AdminGetString:  Bring up a dialog for user to enter a string.
- *   Return True iff user enters a string.
+ *   Return true iff user enters a string.
  *   hParent gives parent window for dialog.
  *   buf gets filled in with string; must have length at least MAX_CONSTANT.
  */
-Bool AdminGetString(HWND hParent, char *buf)
+bool AdminGetString(HWND hParent, char *buf)
 {
    int retval;
-   retval = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ADMINSTRING), hParent, 
+   retval = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_ADMINSTRING), hParent, 
 			   AdminStringDialogProc, (LPARAM) buf);
    
    if (retval == IDCANCEL)
-      return False;
-   return True;
+      return false;
+   return true;
 }
 
 /****************************************************************************/
@@ -573,7 +573,7 @@ Bool AdminGetString(HWND hParent, char *buf)
  * AdminStringDialogProc:  Dialog procedure for entering a string.
  *   Initial lParam is buffer to fill in.
  */
-BOOL CALLBACK AdminStringDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK AdminStringDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    static char *buf;
    HWND hEdit;

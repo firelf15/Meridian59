@@ -15,17 +15,21 @@
 HINSTANCE hInst;          // Handle of this DLL
 
 ClientInfo *cinfo;     // Holds data passed from main client
-Bool        exiting;
+bool        exiting;
 
 extern HWND hSendMailDlg; /* Non-NULL if Send Mail dialog is up */
 extern HWND hReadMailDlg; /* Non-NULL if Read Mail dialog is up */
 
+// Declare global HBITMAP objects
+HBITMAP hbmUpArrow = NULL;
+HBITMAP hbmDownArrow = NULL;
+
 /* local function prototypes */
-static Bool HandleMail(char *ptr, long len);
-static Bool HandleLookupNames(char *ptr, long len);
-static Bool HandleArticles(char *ptr, long len);
-static Bool HandleArticle(char *ptr, long len);
-static Bool HandleLookNewsgroup(char *ptr, long len);
+static bool HandleMail(char *ptr, long len);
+static bool HandleLookupNames(char *ptr, long len);
+static bool HandleArticles(char *ptr, long len);
+static bool HandleArticle(char *ptr, long len);
+static bool HandleLookNewsgroup(char *ptr, long len);
 static void RegisterWindowClasses(void);
 static void CommandMail(char *args);
 
@@ -70,6 +74,16 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD reason, LPVOID reserved)
    {
    case DLL_PROCESS_ATTACH:
       hInst = hModule;
+
+      // Load sort arrow bitmaps
+      hbmUpArrow = (HBITMAP)LoadImage(hInst, 
+         MAKEINTRESOURCE(IDB_UPARROW), IMAGE_BITMAP, 0, 0, 
+         LR_LOADTRANSPARENT | LR_LOADMAP3DCOLORS);
+
+      hbmDownArrow = (HBITMAP)LoadImage(hInst, 
+         MAKEINTRESOURCE(IDB_DOWNARROW), IMAGE_BITMAP, 0, 0, 
+         LR_LOADTRANSPARENT | LR_LOADMAP3DCOLORS);
+         
       break;
 
    case DLL_PROCESS_DETACH:
@@ -88,7 +102,7 @@ void WINAPI GetModuleInfo(ModuleInfo *info, ClientInfo *client_info)
    info->module_id  = MODULE_ID;
 
    cinfo = client_info;    // Save client info for our use later
-   exiting = False;
+   exiting = false;
 
    RegisterWindowClasses();
 
@@ -102,9 +116,9 @@ void WINAPI GetModuleInfo(ModuleInfo *info, ClientInfo *client_info)
 /****************************************************************************/
 void WINAPI ModuleExit(void)
 {
-   Bool has_dialog = False, retval;
+   bool has_dialog = false, retval;
 
-   exiting = True;
+   exiting = true;
 
    has_dialog = AbortMailDialogs();
    retval = AbortNewsDialogs();
@@ -142,20 +156,20 @@ void RegisterWindowClasses(void)
  * EVENT_SERVERMSG
  */
 /****************************************************************************/
-Bool WINAPI EventServerMessage(char *message, long len)
+bool WINAPI EventServerMessage(char *message, long len)
 {
-   Bool retval;
+   bool retval;
 
    retval = LookupMessage(message, len, handler_table);
 
    // If we handle message, don't pass it on to anyone else
-   if (retval == True)
-     return False;
+   if (retval == true)
+     return false;
 
-   return True;    // Allow other modules to get other messages
+   return true;    // Allow other modules to get other messages
 }
 /********************************************************************/
-Bool HandleMail(char *ptr, long len)
+bool HandleMail(char *ptr, long len)
 {
    long index;
    WORD num_recipients, i;
@@ -171,7 +185,7 @@ Bool HandleMail(char *ptr, long len)
    len -= 4;
    len = ExtractString(&ptr, len, sender, MAXUSERNAME);
    if (len == -1)
-      return False;
+      return false;
    Extract(&ptr, &msg_time, SIZE_TIME);
    Extract(&ptr, &num_recipients, SIZE_NUM_RECIPIENTS);
    len -= SIZE_TIME + SIZE_NUM_RECIPIENTS;
@@ -180,21 +194,21 @@ Bool HandleMail(char *ptr, long len)
    if (num_recipients > MAX_RECIPIENTS)
    {
       RequestDeleteMail(index);
-      return False;
+      return false;
    }
 
    /* If no recipients, then there is no more mail */
    if (num_recipients == 0)
    {
       MailNewMessage(0, sender, 0, NULL, NULL, 0);
-      return True;
+      return true;
    }
 
    for (i=0; i < num_recipients; i++)
    {
       len = ExtractString(&ptr, len, recipients[i], MAXUSERNAME);
       if (len == -1)
-         return False;
+         return false;
    }
    
    Extract(&ptr, &resource_id, SIZE_ID);
@@ -202,14 +216,14 @@ Bool HandleMail(char *ptr, long len)
    
    /* Remove format string id # & other ids from length */
    if (!CheckServerMessage(&msg, &ptr, len, resource_id))
-      return False;
+      return false;
 
    MailNewMessage(index, sender, num_recipients, recipients, msg, msg_time);
 
-   return True;
+   return true;
 }
 /********************************************************************/
-Bool HandleArticles(char *ptr, long len)
+bool HandleArticles(char *ptr, long len)
 {
    WORD newsgroup;
    WORD num_articles;
@@ -219,7 +233,7 @@ Bool HandleArticles(char *ptr, long len)
    int i;
 
    if (len < SIZE_NEWSGROUP_ID + 2 * SIZE_PART + 2)
-      return False;
+      return false;
 
    Extract(&ptr, &newsgroup, SIZE_NEWSGROUP_ID);
    Extract(&ptr, &part, SIZE_PART);
@@ -232,7 +246,7 @@ Bool HandleArticles(char *ptr, long len)
       if (len < 4 + SIZE_TIME)
       {
 	 list_destroy(list);
-	 return False;
+	 return false;
       }
       len -= 4 + SIZE_TIME;
 
@@ -243,38 +257,41 @@ Bool HandleArticles(char *ptr, long len)
       if (len == -1)
       {
 	 list_destroy(list);
-	 return False;
+	 return false;
       }
 
-      len = ExtractString(&ptr, len, article->title, MAX_SUBJECT);
+      len = ExtractString(&ptr, len, article->title, MAX_NEWS_SUBJECT);
       if (len == -1)
       {
 	 list_destroy(list);
-	 return False;
+	 return false;
       }
       list = list_add_item(list, article);     
    }
 
    if (len != 0)
-      return False;
+   {
+     list_destroy(list);
+     return false;
+   }
 
    ReceiveArticles(newsgroup, part, max_part, list);
-   return True;
+   return true;
 }
 /********************************************************************/
-Bool HandleArticle(char *ptr, long len)
+bool HandleArticle(char *ptr, long len)
 {
    char article[MAXMESSAGE + 1];
 
    len = ExtractString(&ptr, len, article, MAXMESSAGE);
    if (len != 0)
-      return False;
+      return false;
 
    UserReadArticle(article);
-   return True;
+   return true;
 }
 /********************************************************************/
-Bool HandleLookNewsgroup(char *ptr, long len)
+bool HandleLookNewsgroup(char *ptr, long len)
 {
    ID resource_id;
    WORD newsgroup;
@@ -286,7 +303,7 @@ Bool HandleLookNewsgroup(char *ptr, long len)
 
    temp_len = SIZE_NEWSGROUP_ID + 1 + SIZE_ID * 4 + SIZE_ANIMATE;
    if (len < temp_len)
-      return False;
+      return false;
 
    Extract(&ptr, &newsgroup, SIZE_NEWSGROUP_ID);
    Extract(&ptr, &permission, 1);
@@ -296,14 +313,14 @@ Bool HandleLookNewsgroup(char *ptr, long len)
 
    /* Remove format string id # & other ids from length */
    if (!CheckServerMessage(&msg, &ptr, len - temp_len, resource_id))
-      return False;
+      return false;
 
    UserReadNews(&obj, msg, newsgroup, permission);
 
-   return True;
+   return true;
 }
 /********************************************************************/
-Bool HandleLookupNames(char *ptr, long len)
+bool HandleLookupNames(char *ptr, long len)
 {
    WORD num_objects;
    int i;
@@ -315,7 +332,7 @@ Bool HandleLookupNames(char *ptr, long len)
    if (num_objects > MAX_RECIPIENTS)
    {
       debug(("Too many recipients %d\n", (int) num_objects));
-      return False;
+      return false;
    }
    
    for (i=0; i < num_objects; i++)
@@ -325,27 +342,27 @@ Bool HandleLookupNames(char *ptr, long len)
    if (len != 0)
    {
       SafeFree(objs);
-      return False;
+      return false;
    }
 
    MailRecipientsReceived(num_objects, objs);
    
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * EVENT_USERACTION
  */
 /****************************************************************************/
-Bool WINAPI EventUserAction(int action, void *user_action)
+bool WINAPI EventUserAction(int action, void *user_action)
 {
    if (action != A_MAILREAD)
-      return True;
+      return true;
 
    if (!IsWaitingGameState(GameGetState()))
       UserReadMail();
 
-   return False;
+   return false;
 }
 /****************************************************************************/
 void CommandMail(char *args)
@@ -357,33 +374,33 @@ void CommandMail(char *args)
  * EVENT_FONTCHANGED
  */
 /****************************************************************************/
-Bool WINAPI EventFontChanged(WORD font_id, LOGFONT *font)
+bool WINAPI EventFontChanged(WORD font_id, LOGFONT *font)
 {
    MailChangeFonts();
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * EVENT_COLORCHANGED
  */
 /****************************************************************************/
-Bool WINAPI EventColorChanged(WORD color_id, COLORREF color)
+bool WINAPI EventColorChanged(WORD color_id, COLORREF color)
 {
    MailChangeColor();
-   return True;
+   return true;
 }
 /****************************************************************************/
 /*
  * EVENT_TEXTCOMMAND
  */
 /****************************************************************************/
-Bool WINAPI EventTextCommand(char *str)
+bool WINAPI EventTextCommand(char *str)
 {
    // Parse command, and don't pass it on if we handle it
    if (ParseCommand(str, commands))
-      return False;
+      return false;
 
-   return True;
+   return true;
 }
 
 /***************************************************************************/
@@ -401,4 +418,43 @@ bool IsNameInIgnoreList(const char *name)
         return true;
   }
   return false;
+}
+
+/***************************************************************************/
+/*
+ * ListView_SetHeaderSortImage sets sort indicator image for a given ListView
+ * provided a column index and sort direction.
+ */
+/***************************************************************************/
+void ListView_SetHeaderSortImage(HWND hListView, int sortedColumn, bool sortAscending)
+{
+   // Get the handle to the header control associated with the list view
+   HWND hHeader = ListView_GetHeader(hListView);
+   if (!hHeader)
+       return;
+
+   int columnCount = Header_GetItemCount(hHeader);
+
+   for (int i = 0; i < columnCount; i++)
+   {
+      HDITEM hdi = {0};
+      hdi.mask = HDI_FORMAT | HDI_BITMAP;
+      
+      // Get the current format of the header item
+      Header_GetItem(hHeader, i, &hdi);
+
+      if (i == sortedColumn)
+      {
+         hdi.fmt |= (HDF_BITMAP | HDF_BITMAP_ON_RIGHT);
+         hdi.hbm = sortAscending ? hbmUpArrow : hbmDownArrow;
+      }
+      else
+      {
+         hdi.fmt &= ~(HDF_BITMAP | HDF_BITMAP_ON_RIGHT);
+         hdi.hbm = NULL;
+      }
+
+      // Set the header item at the current index with the updated details
+      Header_SetItem(hHeader, i, &hdi);
+   }
 }

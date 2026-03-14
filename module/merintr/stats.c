@@ -16,19 +16,19 @@
 #include "client.h"
 #include "merintr.h"
 
-HWND hStats;                        // Window containing stats area
-static list_type stats = NULL;      // List of stats currently displayed
+HWND hStats;                        // Window containing stats area.
+static list_type stats = NULL;      // List of stats currently being processed.
 
 static AREA stats_area;
 
-static int current_group;           // Group number currently being displayed
-static int group_type;              // Type of group currently being displayed
+static StatGroup current_group;           // Group number currently being processed.
+static StatGroupType group_type;              // Type of group currently being processed.
 
 /* local function prototypes */
 static void StatsCreateGroup(void);
 static void StatsDestroyGroup(void);
 static void StatsCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
-static BOOL CALLBACK StatsWindowProc(HWND hwnd, UINT message, UINT wParam, LONG lParam);
+static INT_PTR CALLBACK StatsWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 static void StatRedraw(Statistic *s);
 /************************************************************************/
 /*
@@ -39,7 +39,7 @@ void StatsCreate(HWND hParent)
   CreateDialog(hInst, MAKEINTRESOURCE(IDD_STATS), hParent, StatsWindowProc);
   
   current_group = STATS_INVENTORY;   // Group to start displaying
-  group_type = GROUP_NONE;
+  group_type = StatGroupType::INVALID_TYPE;
   StatCacheCreate();
   StatButtonsCreate();
   RequestStatGroups();   
@@ -48,7 +48,7 @@ void StatsCreate(HWND hParent)
 /* 
  * StatsWindowProc:  Subclass stats window to have transparent background.
  */
-BOOL CALLBACK StatsWindowProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK StatsWindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
    const DRAWITEMSTRUCT *lpdis;
   
@@ -79,7 +79,7 @@ BOOL CALLBACK StatsWindowProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
      {
      case IDC_STATBUTTON:
        StatButtonDrawItem(hwnd, lpdis);
-       return False;
+       return false;
 
      default:
        return StatsListDrawItem(hwnd, lpdis);
@@ -137,12 +137,11 @@ void StatsResize(int xsize, int ysize, AREA *view)
    int yMiniMap, iHeightAvailableForMapAndStats, iHeightMiniMap;
 
    stats_area.x = view->x + view->cx + LEFT_BORDER + 3 * HIGHLIGHT_THICKNESS;
-   stats_area.cx = min(xsize - stats_area.x - 3 * HIGHLIGHT_THICKNESS - EDGETREAT_WIDTH, INVENTORY_MAX_WIDTH);
+   stats_area.cx = xsize - stats_area.x - 3 * HIGHLIGHT_THICKNESS - EDGETREAT_WIDTH;
 
    yMiniMap = 2 * TOP_BORDER + USERAREA_HEIGHT + EDGETREAT_HEIGHT + MAPTREAT_HEIGHT;
    iHeightAvailableForMapAndStats = ysize - yMiniMap - 2 * HIGHLIGHT_THICKNESS - EDGETREAT_HEIGHT;
    iHeightMiniMap = (int)( iHeightAvailableForMapAndStats * PROPORTION_MINIMAP ) - HIGHLIGHT_THICKNESS - MAPTREAT_HEIGHT;
-   iHeightMiniMap = min( iHeightMiniMap, MINIMAP_MAX_HEIGHT );
    
    stats_area.y = yMiniMap + iHeightMiniMap + 3 * HIGHLIGHT_THICKNESS + MAPTREAT_HEIGHT + MAP_STATS_GAP_HEIGHT;
    stats_area.cy = ysize - EDGETREAT_HEIGHT - HIGHLIGHT_THICKNESS - stats_area.y - STATS_BOTTOM_GAP_HEIGHT;
@@ -154,7 +153,7 @@ void StatsResize(int xsize, int ysize, AREA *view)
    StatsMove();
 }
 /************************************************************************/
-void StatsSetFocus(Bool forward)
+void StatsSetFocus(bool forward)
 {
    SetFocus(hStats);
 }
@@ -211,10 +210,10 @@ void StatsChangeColor(void)
 /*
  * StatsDrawNumItem:  Redraw stats area.
  */
-Bool StatsDrawNumItem(HWND hwnd, const DRAWITEMSTRUCT *lpdis)
+bool StatsDrawNumItem(HWND hwnd, const DRAWITEMSTRUCT *lpdis)
 {
    StatsDraw();
-   return True;
+   return true;
 }
 
 /************************************************************************/
@@ -229,6 +228,59 @@ void StatsClearArea(void)
       r.top = stats_area.y;
    DrawWindowBackgroundColor( pinventory_bkgnd(), hdc, &r, r.left, r.top, -1 );
    ReleaseDC(cinfo->hMain, hdc);
+}
+/************************************************************************/
+/*
+ * ActivateInventory: Activate the inventory.
+ */
+void ActivateInventory()
+{
+	InvalidateRect(GetHwndInv(), NULL, FALSE);
+	DisplayInventoryAsStatGroup(StatGroup::STATS_INVENTORY);
+
+	InventoryRedraw();
+	InventorySetFocus(true);
+
+	// The inventory is special and takes focus unlike the other stat groups.
+	// We now return focus to the main window.
+	SetFocus(cinfo->hMain);
+}
+/************************************************************************/
+/*
+ * ActiveStatGroup: Activate a specific stat group.
+ */
+void ActivateStatGroup(StatGroup stat_group)
+{
+	list_type stat_list;
+	if (StatCacheGetEntry(stat_group, &stat_list) == true)
+	{
+		DisplayStatGroup(stat_group, stat_list);
+	}
+	else
+	{
+		RequestStats(stat_group);
+	}
+}
+/****************************************************************************/
+/*
+ * RestoreActiveGroup:  Restore the player's active stat group.
+ * The possible stat groups are: inventory, skills, spells or stats.
+ */
+void RestoreActiveStatGroup()
+{
+	StatGroup active_stat_group = GetStatGroup();
+	bool inventory_group = (active_stat_group == StatGroup::STATS_INVENTORY);
+	StatsShowGroup(!inventory_group);
+	ShowInventory(inventory_group);
+
+	if (inventory_group)
+	{
+		ActivateInventory();
+	}
+	else
+	{
+		ActivateStatGroup(active_stat_group);
+	}
 }
 /************************************************************************/
 /*
@@ -250,8 +302,7 @@ void StatsGroupsInfo(BYTE num_groups, ID *names)
    StatsSetButtons( 5 );
    StatCacheSetSize(num_groups);
    RequestStats(STATS_MAIN);              // Always get main stats
-   if( current_group != STATS_INVENTORY )
-		RequestStats(current_group);
+   RestoreActiveStatGroup();
 }
 
 /************************************************************************/
@@ -313,15 +364,15 @@ void StatsMove(void)
  */
 void StatsDraw(void)
 {
-   switch(group_type)
+   switch (group_type)
    {
    case STATS_NUMERIC:
-		if( StatsGetCurrentGroup() != STATS_INVENTORY && StatsGetCurrentGroup() != STATS_SPELLS && StatsGetCurrentGroup() != STATS_SKILLS )
-			StatsNumDraw(stats);
+      if (StatsGetCurrentGroup() == StatGroup::STATS_MAIN || StatsGetCurrentGroup() == StatGroup::STATS_CHARACTER)
+         StatsNumDraw(stats);
       break;
 
    case STATS_LIST:
-//	   InvalidateRect( hStats, NULL, FALSE );
+      // InvalidateRect( hStats, NULL, FALSE );
       break;
    }
 }
@@ -330,7 +381,7 @@ void StatsDraw(void)
 /*
  * StatChange:  Called when server tells us that a statistic has changed value.
  */
-void StatChange(BYTE group, Statistic *s)
+void StatChange(StatGroup group, Statistic *s)
 {
    Statistic *new_stat;
 
@@ -368,7 +419,7 @@ void StatRedraw(Statistic *s)
 /*
  * StatsReceiveGroup:  Called when we receive a group of stats from the server.
  */
-void StatsReceiveGroup(BYTE group, list_type l)
+void StatsReceiveGroup(StatGroup group, list_type l)
 {
 	if (group == STATS_MAIN)
 		StatsMainReceive(l);
@@ -383,7 +434,7 @@ void StatsReceiveGroup(BYTE group, list_type l)
 			if( StatsGetCurrentGroup() == STATS_INVENTORY )
 			{
 				//	Inventory must be going away.
-				ShowInventory( False );
+				ShowInventory(false);
 			}
 		}
 		DisplayStatGroup(group, l);
@@ -401,7 +452,7 @@ void StatsGetArea(AREA *a)
 /*
  * StatsGetCurrentGroup:  Return the stat group currently being displayed
  */
-int StatsGetCurrentGroup(void)
+StatGroup StatsGetCurrentGroup(void)
 {
    return current_group;
 }
@@ -410,7 +461,7 @@ int StatsGetCurrentGroup(void)
 /*
  * DisplayStatGroup:  Display the given group of stats.
  */
-void DisplayStatGroup(BYTE group, list_type l)
+void DisplayStatGroup(StatGroup group, list_type l)
 {
    current_group = group;
 
@@ -418,8 +469,9 @@ void DisplayStatGroup(BYTE group, list_type l)
    stats = l;
 
    if (stats == NULL)
-      group_type = GROUP_NONE;
-   else group_type = ((Statistic *) (stats->data))->type;
+      group_type = StatGroupType::INVALID_TYPE;
+   else
+      group_type = ((Statistic *) (stats->data))->type;
 
    StatsClearArea();
 
@@ -430,31 +482,31 @@ void DisplayStatGroup(BYTE group, list_type l)
 
 /************************************************************************/
 /*
- * DisplayInventoryAsStatGroup:  ajw - Like DisplayStatGroup, but called when Inventory becomes the shown "group".
+ * DisplayInventoryAsStatGroup: Like DisplayStatGroup, but called when Inventory becomes the shown "group".
  */
-void DisplayInventoryAsStatGroup( BYTE group )
+void DisplayInventoryAsStatGroup( StatGroup group )
 {
 	current_group = group;
 }
 
 /************************************************************************/
 /*
- * StatsShowGroup:  ajw - Show or hide controls for a group of stats.
+ * StatsShowGroup:  Show or hide controls for a group of stats.
  */
-void StatsShowGroup( Bool bShow )
+void StatsShowGroup(bool bShow)
 {
-	int group_type_temp;              // Type of group currently being displayed
-	if (stats == NULL)
-		group_type_temp = GROUP_NONE;
-	else group_type_temp = ((Statistic *) (stats->data))->type;
-	switch( group_type_temp )
-	{
-	case STATS_NUMERIC:
-		ShowStatsNum( bShow, stats );
-		break;
+   StatGroupType group_type_temp = StatGroupType::INVALID_TYPE;  // Type of group currently being displayed
+   if (stats != NULL)
+      group_type_temp = ((Statistic *) (stats->data))->type;
 
-	case STATS_LIST:
-		ShowStatsList( bShow );
-		break;
-	}
+   switch (group_type_temp)
+   {
+   case STATS_NUMERIC:
+      ShowStatsNum(bShow, stats);
+      break;
+
+   case STATS_LIST:
+      ShowStatsList(bShow);
+      break;
+   }
 }

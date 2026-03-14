@@ -20,18 +20,18 @@ static WNDPROC lpfnDefInputProc; /* Default edit window procedure */
 static char    *buf;             /* Buffer to store stuff coming from server */
 static int     pos = 0;          /* Current position in buf */
 
-extern Bool admin_mode;            // True when user wants to go into admin mode
+extern bool admin_mode;            // true when user wants to go into admin mode
 
 /* local function prototypes */
 
-long CALLBACK InputProc(HWND hwnd, UINT message, UINT wParam, LONG lParam);
-long CALLBACK HistoryProc(HWND hwnd, UINT message, UINT wParam, LONG lParam);
+LRESULT CALLBACK InputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK HistoryProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 /************************************************************************/
 void TermInit(void)
 {
    RECT r;
 
-   admin_mode = False;     // Don't re-enter admin mode after leaving 
+   admin_mode = false;     // Don't re-enter admin mode after leaving 
 
    /* clear the window for our use */
    InvalidateRect(hMain,NULL,TRUE); 
@@ -93,14 +93,14 @@ void TermChangeFont(void)
 
    /* Rescroll, since bigger font means fewer lines fit. */
    WindowBeginUpdate(hwndHistory);
-   EditBoxScroll(hwndHistory, False);
+   EditBoxScroll(hwndHistory, false);
    WindowEndUpdate(hwndHistory);
 }
 /************************************************************************/
 /*
  * HistoryProc:  Subclassed window procedure for history edit box.
  */
-long CALLBACK HistoryProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
+LRESULT CALLBACK HistoryProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -116,7 +116,7 @@ long CALLBACK HistoryProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
 /*
  * InputProc:  Subclassed window procedure for input edit box.
  */
-long CALLBACK InputProc(HWND hwnd, UINT message, UINT wParam, LONG lParam)
+LRESULT CALLBACK InputProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
    int len;
    char buf[MAX_ADMIN + 1];
@@ -212,7 +212,7 @@ void DoneCharsTerm(void)
    Edit_ReplaceSel(hwndHistory, buf);
 
    /* Scroll new string into view */
-   EditBoxScroll(hwndHistory, False);
+   EditBoxScroll(hwndHistory, false);
 
    WindowEndUpdate(hwndHistory);
    pos = 0;

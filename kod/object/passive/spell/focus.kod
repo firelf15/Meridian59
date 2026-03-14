@@ -107,11 +107,11 @@ messages:
       return;
    }
 
-   BreakTrance( who = $, state = $, event = 0, what = $ )
+   BreakTrance( who = $, state = $, event = 0, castwhat = $ )
    {
       %% Attack Spells (fireballs and lightning bolts) must not break this trance
       if event = EVENT_CAST
-         AND IsClass(what,&AttackSpell)
+         AND IsClass(castwhat,&AttackSpell)
       {
          return;
       }
@@ -120,7 +120,7 @@ messages:
       return;
    }
    
-   AdjustManaTime(time=0, iSpellPower=0)
+   AdjustManaTime(time = 0, iSpellPower = 0)
    "Reduces time passed in so that mana regens faster.  Returns reduced time."
    {
       local iTime;

@@ -5,22 +5,29 @@ TOPDIR=..
 
 SOURCEDIR = $(ROOMEDITDIR)\source
 RESDIR = $(ROOMEDITDIR)\res
-OWLSOURCEDIR = $(ROOMEDITDIR)\owl-6.34\source
-OWLINCLUDEDIR = $(ROOMEDITDIR)\owl-6.34\include
-OWLOUTDIR = $(ROOMEDITDIR)\owl-6.34\$(OUTDIR)
+OWLSOURCEDIR = $(ROOMEDITDIR)\owl-7.0.19\source\owlcore
+OWLINCLUDEDIR = $(ROOMEDITDIR)\owl-7.0.19\include
+OWLOUTDIR = $(ROOMEDITDIR)\owl-7.0.19\$(OUTDIR)
+OWLLIBNAME = owl.lib
 
 # /GR: Needs RTTI
 # /wd4244: conversion, possible loss of data
 # /wd4018: signed/unsigned mismatch
 
-CFLAGS = $(CFLAGS) -DOWL5_COMPAT -D__WIN32__ -D_OWLPCH -I$(ROOMEDITDIR)\include -I$(OWLINCLUDEDIR) -I$(RESDIR) \
-	/GR /wd4244 /wd4018
+CFLAGS = $(CFLAGS:-GR-=-GR) -DOWL5_COMPAT -D__WIN32__ -D_OWLPCH -I$(ROOMEDITDIR)\include -I$(OWLINCLUDEDIR) -I$(RESDIR) \
+	/wd4244 /wd4018
+
+# We specify NODEFAULTLIB because OWL has a #pragma(comment, lib) that auto-includes a magic library name
+# that we don't generate.  This flag disables that auto-include, but the downside is that we have to
+# a zillion required libs manually in $(LIBS).
+# See https://sourceforge.net/p/owlnext/discussion/97175/thread/2ebbc20f4e/
+LINKFLAGS = $(LINKFLAGS) /NODEFAULTLIB
 
 #
 # Dependency List
 #
 
-all: makedirs $(OUTDIR)\windeu32.exe
+all: makedirs $(OUTDIR)\roomedit.exe
 
 OBJS = \
    $(OUTDIR)\save.obj\
@@ -72,9 +79,11 @@ OBJS = \
    $(OUTDIR)\windeapp.res
 
 LIBS = \
-	$(OWLOUTDIR)\owl.lib \
-	zdll.lib \
- 	user32.lib gdi32.lib shell32.lib advapi32.lib oleaut32.lib
+	$(OWLOUTDIR)\$(OWLLIBNAME) \
+	zlib.lib \
+	kernel32.lib user32.lib gdi32.lib shell32.lib advapi32.lib oleaut32.lib comctl32.lib comdlg32.lib gdiplus.lib \
+	uuid.lib libcmt.lib libcpmt.lib libucrt.lib libvcruntime.lib \
+	oldnames.lib \
 
 OWLOBJS = \
 	$(OWLOUTDIR)\animctrl.obj \
@@ -124,14 +133,13 @@ OWLOBJS = \
 	$(OWLOUTDIR)\dib.obj \
 	$(OWLOUTDIR)\dibdc.obj \
 	$(OWLOUTDIR)\dibitmap.obj \
-	$(OWLOUTDIR)\dispatch.obj \
 	$(OWLOUTDIR)\docking.obj \
 	$(OWLOUTDIR)\docmanag.obj \
 	$(OWLOUTDIR)\doctpl.obj \
 	$(OWLOUTDIR)\document.obj \
 	$(OWLOUTDIR)\draglist.obj \
 	$(OWLOUTDIR)\drawitem.obj \
-	$(OWLOUTDIR)\dumpstack.obj \
+#	$(OWLOUTDIR)\dumpstack.obj \
 	$(OWLOUTDIR)\edit.obj \
 	$(OWLOUTDIR)\editfile.obj \
 	$(OWLOUTDIR)\editsear.obj \
@@ -273,7 +281,6 @@ OWLOBJS = \
 	$(OWLOUTDIR)\uimetric.obj \
 	$(OWLOUTDIR)\uipart.obj \
 	$(OWLOUTDIR)\updown.obj \
-	$(OWLOUTDIR)\urllink.obj \
 	$(OWLOUTDIR)\ustring.obj \
 	$(OWLOUTDIR)\validate.obj \
 	$(OWLOUTDIR)\version.obj \
@@ -291,7 +298,6 @@ OWLOBJS = \
 	$(OWLOUTDIR)\wsksockd.obj \
 	$(OWLOUTDIR)\wsksockm.obj \
 	$(OWLOUTDIR)\wsyscls.obj \
-	$(OWLOUTDIR)\owlpch.obj \
 	$(OWLOUTDIR)\owl.res
 
 {$(OWLSOURCEDIR)}.cpp{$(OWLOUTDIR)}.obj::
@@ -300,18 +306,35 @@ OWLOBJS = \
 {$(OWLSOURCEDIR)}.rc{$(OWLOUTDIR)}.res:
    $(RC) /i$(OWLINCLUDEDIR) /fo $@ $**
 
-$(OWLOUTDIR)\owl.lib: $(OWLOBJS)
+$(OWLOUTDIR)\$(OWLLIBNAME): $(OWLOBJS)
 	$(LIBPRG) $** -OUT:$@
 
 {$(RESDIR)}.rc{$(OUTDIR)}.res:
    $(RC) /fo $@ $**
 
 makeowldir:
-		-@mkdir $(OWLOUTDIR)
+		-@if not exist $(OWLOUTDIR) mkdir $(OWLOUTDIR)
 
-$(OUTDIR)\windeu32.exe : makedirs makeowldir $(OBJS) $(OWLOUTDIR)\owl.lib
+$(OUTDIR)\roomedit.exe : makedirs makeowldir $(OBJS) $(OWLOUTDIR)\$(OWLLIBNAME)
 	$(LINK) $(LINKFLAGS) $(LINKWINDOWSFLAGS) @<<
 	$(OBJS) $(LIBS) -OUT:$@
 <<
 
-!include $(TOPDIR)\rules.mak
+
+makedirs:
+        -@if not exist $(OUTDIR) mkdir $(OUTDIR)
+
+{$(SOURCEDIR)}.c{$(OUTDIR)}.obj::
+	$(CC) $(CFLAGS) /FpCpch /Fd$(OUTDIR)\vc90.pdb /Fo$(OUTDIR)/ -c $< 
+
+{$(SOURCEDIR)}.cpp{$(OUTDIR)}.obj::
+	$(CC) $(CFLAGS) /FpCpch /Fd$(OUTDIR)\vc90.pdb /Fo$(OUTDIR)/ -c $< 
+
+{$(SOURCEDIR)}.rc{$(OUTDIR)}.res:
+        $(RC) /fo $@ /i$(SOURCEDIR) $**
+
+clean :
+        @$(RM) $(OUTDIR)\*
+        @$(RMDIR) $(OUTDIR)
+        @$(RM) $(OWLOUTDIR)\*
+        @$(RMDIR) $(OWLOUTDIR)

@@ -64,7 +64,7 @@ user_node * CreateNewUser(int account_id,int class_id)
    p[0].value = system_id_const.int_val;
    p[0].name_id = SYSTEM_PARM;
 
-   sprintf(buf,"User%i%i%i",account_id, GetTime()%100000, (int) (GetMilliCount()%1000));
+   snprintf(buf, sizeof(buf), "User%i%i%i",account_id, (int) GetTime()%100000, (int) (GetMilliCount()%1000));
    
    name_val.v.tag = TAG_RESOURCE;
    name_val.v.data = AddDynamicResource(buf);
@@ -115,7 +115,7 @@ user_node * CreateNewUserByName(int account_id,int class_id,char*buf)
    return u;
 }
 
-Bool AssociateUser(int account_id,int object_id)
+bool AssociateUser(int account_id,int object_id)
 {
    user_node *u;
 
@@ -123,7 +123,7 @@ Bool AssociateUser(int account_id,int object_id)
    while (u != NULL)
    {
       if (u->object_id == object_id)
-	 return False;
+        return false;
       u = u->next;
    }
 
@@ -134,7 +134,7 @@ Bool AssociateUser(int account_id,int object_id)
    u->next = users;
    users = u;
 
-   return True;
+   return true;
 }
 
 void LoadUser(int account_id,int object_id)
@@ -301,7 +301,7 @@ user_node * GetUserByName(char *username)
    val_type temp_str_val,ret_val;
    parm_node p[1];
 
-   SetTempString(username,strlen(username));
+   SetTempString(username, (int) strlen(username));
 
    temp_str_val.v.tag = TAG_TEMP_STRING;
    temp_str_val.v.data = 0;

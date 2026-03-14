@@ -21,16 +21,15 @@ typedef struct {
    int     name;          // Resource id of name
    int     template_id;   // Resource id of dialog template
    DLGPROC dialog_proc;   // Dialog procedure for tab
-   Bool    guest;         // True if we should show tab for guest accounts
 } TabPage;
 
 // Window handles of modeless dialogs, one per tab
 TabPage tab_pages[] = {
-{ IDS_CHAR_NAME,      IDD_CHARNAME,       CharNameDialogProc,   True, },
-{ IDS_CHARAPPEARANCE, IDD_CHARAPPEARANCE, CharFaceDialogProc,   True, },
-{ IDS_CHARSTATS,      IDD_CHARSTATS,      CharStatsDialogProc,  True, },
-{ IDS_CHARSPELLS,     IDD_CHARSPELLS,     CharSpellsDialogProc, False, },
-{ IDS_CHARSKILLS,     IDD_CHARSKILLS,     CharSkillsDialogProc, False, },
+{ IDS_CHAR_NAME,      IDD_CHARNAME,       CharNameDialogProc, },
+{ IDS_CHARAPPEARANCE, IDD_CHARAPPEARANCE, CharFaceDialogProc, },
+{ IDS_CHARSTATS,      IDD_CHARSTATS,      CharStatsDialogProc, },
+{ IDS_CHARSPELLS,     IDD_CHARSPELLS,     CharSpellsDialogProc, },
+{ IDS_CHARSKILLS,     IDD_CHARSKILLS,     CharSkillsDialogProc, },
 };
 
 #define NUM_TAB_PAGES (sizeof(tab_pages) / sizeof(TabPage))
@@ -49,7 +48,7 @@ int spell_points;                       // Number of points left
 static HWND hTab;      // Handle of tab control
 static HWND hTabPage;  // Handle of currently active child modeless dialog, depending on active tab
 
-static Bool enter_game;// True when user fills in dialog and hits OK
+static bool enter_game;// true when user fills in dialog and hits OK
 
 extern ID    char_to_use;     /* ID # of character player wants to use in game */
 extern char  name_to_use[];   /* name of character player wants to use in game */
@@ -83,10 +82,6 @@ void MakeChar(CharAppearance *ap_init, list_type spells_init, list_type skills_i
    // Prepare property sheets
    for (i=0; i < NUM_TAB_PAGES; i++)
    {
-      // Skip non-guest pages if we're a guest
-      if (cinfo->config->guest && !tab_pages[i].guest)
-	 continue;
-      
       psh.nPages++;
       psp[i].dwSize = sizeof(PROPSHEETPAGE);
       psp[i].dwFlags = PSP_USETITLE;
@@ -98,7 +93,7 @@ void MakeChar(CharAppearance *ap_init, list_type spells_init, list_type skills_i
       psp[i].pfnCallback = NULL;
    }
    
-   enter_game = False;
+   enter_game = false;
 
    PropertySheet(&psh);   
 
@@ -119,7 +114,7 @@ void MakeChar(CharAppearance *ap_init, list_type spells_init, list_type skills_i
  * VerifySettings:  User has pressed Done button; check values of all settings.
  *   If settings are OK, send them to server.
  */
-Bool VerifySettings(void)
+bool VerifySettings(void)
 {
    char name[MAX_CHARNAME], *new_name, desc[MAX_DESCRIPTION];
    int stats[NUM_CHAR_STATS], parts[NUM_FACE_OVERLAYS + 1];
@@ -135,17 +130,15 @@ Bool VerifySettings(void)
    {
       ClientError(hInst, hMakeCharDialog, IDS_BADCHARNAME, MIN_CHARNAME);
       PropSheet_SetCurSel(hTab, 0, TAB_NAME);
-      return False;
+      return false;
    }
 
    // If stats or spell/skill points remain, ask user to continue
    if (CharStatsGetPoints() > 0 && !AreYouSure(hInst, hMakeCharDialog, NO_BUTTON, IDS_STATPOINTSLEFT))
-     return False;
+     return false;
 
-   // Skip spell points check if a guest; they have no spell section
-   if (!cinfo->config->guest)
-      if (spell_points > 0 && !AreYouSure(hInst, hMakeCharDialog, NO_BUTTON, IDS_SPELLPOINTSLEFT))
-	 return False;
+   if (spell_points > 0 && !AreYouSure(hInst, hMakeCharDialog, NO_BUTTON, IDS_SPELLPOINTSLEFT))
+     return false;
 
    // Fill in face bitmaps
    CharFaceGetChoices(ap, parts, &gender);
@@ -180,7 +173,7 @@ Bool VerifySettings(void)
    list_delete(skills_send);
 
    EnableWindow(GetDlgItem(hMakeCharDialog, IDOK), FALSE);
-   return True;
+   return true;
 }
 
 /********************************************************************/
@@ -222,7 +215,7 @@ void CharTabPageCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 /********************************************************************/
 void CharInfoValid(void)
 {
-   enter_game = True;
+   enter_game = true;
    if (hMakeCharDialog != NULL)
       EndDialog(hMakeCharDialog, IDOK);
 

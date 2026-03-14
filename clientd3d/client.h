@@ -15,6 +15,7 @@
 #pragma warning(disable: 4244) // cast double to float loses information
 
 #ifndef _INC_WINDOWS
+#define NOMINMAX
 #include <windows.h>
 #include <windowsx.h>
 #include "winxblak.h"
@@ -43,11 +44,12 @@
 
 #include <d3d9.h>
 
-typedef unsigned char Bool;
-enum {False = 0, True = 1};
+typedef INT64 int64;
 
 #define MAJOR_REV 7   /* Major version of client program */
-#define MINOR_REV 17  /* Minor version of client program; must be in [0, 99] */
+#define MINOR_REV 36  /* Minor version of client program; must be in [0, 99] */
+
+#define VERSION_NUMBER(major_rev, minor_rev) ((major_rev * 100) + minor_rev)
 
 #define MAXAMOUNT 9     /* Max # of digits in a server integer */
 #define MAXSTRINGLEN 255 /* Max length of a string loaded from string table */
@@ -67,42 +69,21 @@ enum {False = 0, True = 1};
 
 extern void GetGamePath( char *szGamePath );
 
-extern long CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+extern LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 extern void ClearMessageQueue(void);
 
+extern bool is_foreground;   // True when program is in the foreground
 
-extern Bool is_foreground;   // True when program is in the foreground
+// Minimum # of milliseconds between non-repeat actions
+#define KEY_NOREPEAT_INTERVAL 400
 
 /* This list of include files is good for precompiled headers */
-/* The __cplusplus block and M59EXPORT symbol enable mixed C and C++ modules and client */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Use this #define to enable Miles Sound System version.  If not defined,
-// music is played through the default MIDI player, and sound goes through the
-// ancient wavemix DLL.
-//#define M59_MSS
-
-
-#ifdef M59_MSS
-#define HANDLE_MM_WOM_DONE(hwnd, wParam, lParam, fn) \
-((fn)((hwnd), (int)(wParam), (lParam)), 0L)
 #define MAX_VOLUME 50
-#else
-#include "wavemix.h"
-#endif
    
 #define VOLUME_CUTOFF_DISTANCE 16
 
-#ifdef __cplusplus
-};
-
 #define M59EXPORT extern "C"
-#else
-#define M59EXPORT /* nothing */
-#endif
 
 // Remove debugging strings in final version
 #ifndef NODPRINTFS
@@ -111,11 +92,14 @@ extern "C" {
 #define debug(x)
 #endif
 
-M59EXPORT void _cdecl dprintf(char *fmt,...);
+M59EXPORT void _cdecl dprintf(const char *fmt,...);
 
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
+#include <string>
+#include <vector>
+#include <algorithm>
 
 #include "resource.h"
 #include "proto.h"
@@ -134,7 +118,7 @@ M59EXPORT void _cdecl dprintf(char *fmt,...);
 #include "bsp.h"
 #include "room.h"
 #include "object3d.h"
-#include "project.h"
+#include "projectile.h"
 #include "boverlay.h"
 #include "game.h"
 #include "gameuser.h"
@@ -180,6 +164,7 @@ M59EXPORT void _cdecl dprintf(char *fmt,...);
 #include "config.h"
 #include "palette.h"
 #include "sound.h"
+#include "audio_openal.h"
 #include "module.h"     // header common to client and module files
 #include "modules.h"
 #include "textin.h"
@@ -206,20 +191,30 @@ M59EXPORT void _cdecl dprintf(char *fmt,...);
 #include "md5.h"
 #include "xlat.h"
 #include "rops.h"
-#include "guest.h"
 #include "ping.h"
 #include "objdraw.h"
 #include "profane.h"
 #include "png.h"
 #include "d3dtypes.h"
 #include "d3dcache.h"
+#include "d3ddriver.h"
 #include "d3drender.h"
+#include "d3drender_bgoverlays.h"
+#include "d3drender_fx.h"
+#include "d3drender_lights.h"
+#include "d3drender_materials.h"
+#include "d3drender_objects.h"
+#include "d3drender_skybox.h"
+#include "d3drender_textures.h"
+#include "d3drender_world.h"
 #include "d3dparticle.h"
 #include "matrix.h"
 #include "xform.h"
-#include "d3ddriver.h"
 #include "rscload.h"
 #include "crc.h"
+#include "zlib.h"
+#include "signup.h"
+#include "preferences.h"
 
 // Only include externs if compiling main client
 #ifdef BLAKCLIENT

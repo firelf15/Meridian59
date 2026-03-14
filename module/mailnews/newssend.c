@@ -25,35 +25,35 @@ static ChildPlacement newssend_controls[] = {
 { 0,              0 },   // Must end this way
 };
 
-BOOL CALLBACK PostNewsDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
+INT_PTR CALLBACK PostNewsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 /*****************************************************************************/
 /*
  * UserPostArticle:  User wants to post an article to given newsgroup.
  *   Pop up article posting dialog.
  *   title should be NULL to have no default subject line.
- *   Returns True iff user actually posted article.
+ *   Returns true iff user actually posted article.
  */
-Bool UserPostArticle(HWND hParent, WORD newsgroup, ID name_rsc, char *title)
+bool UserPostArticle(HWND hParent, WORD newsgroup, ID name_rsc, char *title)
 {
    PostNewsDialogStruct s;
    int retval;
 
    if (hPostNewsDialog != NULL)
-      return False;
+      return false;
 
    s.newsgroup = newsgroup;
    s.subject = title;
    s.group_name_rsc = name_rsc;
-   retval = DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_NEWSPOST), hParent,
+   retval = SafeDialogBoxParam(hInst, MAKEINTRESOURCE(IDD_NEWSPOST), hParent,
 			   PostNewsDialogProc, (LPARAM) &s);
 
    if (retval == IDOK)
-      return True;
-   return False;
+      return true;
+   return false;
 }
 /****************************************************************************/
-BOOL CALLBACK PostNewsDialogProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+INT_PTR CALLBACK PostNewsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    static HWND hEdit, hSubject;
    static PostNewsDialogStruct *info;
@@ -165,7 +165,7 @@ void MakeReplySubject(char *subject, int max_chars)
    int re_len;
 
    re_string = GetString(hInst, IDS_RE);
-   re_len = strlen(re_string);
+   re_len = (int) strlen(re_string);
 
    /* Skip stupid case */
    if (re_len >= max_chars)
@@ -174,28 +174,28 @@ void MakeReplySubject(char *subject, int max_chars)
    /* Add "Re: " to the beginning if appropriate */
    if (strnicmp(subject, re_string, re_len))
    {
-      memmove(subject + re_len, subject, min((int) strlen(subject) + 1, max_chars - re_len));
+      memmove(subject + re_len, subject, std::min((int) strlen(subject) + 1, max_chars - re_len));
       memcpy(subject, re_string, re_len);
       subject[max_chars - 1] = 0;
    }
 }
 /****************************************************************************/
 /*
- * AbortNewsDialogs:  Kill off any news dialogs that are up.  Return True iff any was up.
+ * AbortNewsDialogs:  Kill off any news dialogs that are up.  Return true iff any was up.
  */
-Bool AbortNewsDialogs(void)
+bool AbortNewsDialogs(void)
 {
-   Bool retval = False; 
+   bool retval = false; 
 
    if (hPostNewsDialog != NULL)
    {
       SendMessage(hPostNewsDialog, WM_COMMAND, IDCANCEL, 0);
-      retval = True;
+      retval = true;
    }
    if (hReadNewsDialog != NULL)
    {
       SendMessage(hReadNewsDialog, WM_COMMAND, IDCANCEL, 0);
-      retval = True;
+      retval = true;
    }
    return retval;
 }

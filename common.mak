@@ -1,13 +1,10 @@
 # stuff included in blakston makefiles
 
-# defining DYNAMIC uses multi-threaded C runtime DLL; 
-# otherwise link statically with single-threaded lib
-
 # defining RELEASE compiles optimized
 # defining NODEBUG omits debugging information
-# defining FINAL implies release, and also removes debugging strings from client executable 
+# defining RETAIL implies release, and also removes debugging strings from client executable 
 
-!ifdef FINAL
+!ifdef RETAIL
 RELEASE = 1
 NODPRINTFS = 1
 !endif
@@ -40,14 +37,18 @@ DOCDIR      = $(TOPDIR)\doc
 DECODIR     = $(TOPDIR)\blakdeco
 MAKEBGFDIR  = $(TOPDIR)\makebgf
 RESOURCEDIR = $(TOPDIR)\resource
-DIFFDIR     = $(TOPDIR)\blakdiff
 MODULEDIR   = $(TOPDIR)\module
-CRUSHERDIR  = $(TOPDIR)\crusher
 UTILDIR     = $(TOPDIR)\util
 SPROCKETDIR = $(TOPDIR)\sprocket
 CLUBDIR     = $(TOPDIR)\club
-KEYBINDDIR  = $(TOPDIR)\keybind
-WAVEMIXDIR  = $(TOPDIR)\wavemix
+
+# 3rd party libraries
+EXTERNALDIR = $(TOPDIR)\external
+LIBARCHIVEDIR = $(EXTERNALDIR)\libarchive
+LIBPNGDIR   = $(EXTERNALDIR)\libpng
+ZLIBDIR     = $(EXTERNALDIR)\zlib
+OPENALDIR   = $(EXTERNALDIR)\openal-soft\openal-soft-1.24.3-bin
+FMTLIBDIR  = $(EXTERNALDIR)\fmtlib
 
 BLAKBINDIR = $(TOPDIR)\bin
 BLAKLIBDIR = $(TOPDIR)\lib
@@ -61,26 +62,30 @@ KODINCLUDEDIR = $(KODDIR)\include
 PALETTEFILE = $(TOPDIR)\blakston.pal
 
 # compiler specs -- uses multi-threaded DLL C runtime library
+# /FC displays full path of source code file in diagnostics
 # /TP builds C files in C++ mode
 # /WX treats warnings as errors
 # /GR- turns off RTTI
 # /EHsc- turns off exceptions
-# /wd4996  disables warning (GetVersionExA has been deprecated)
-# -arch:IA32 disables SSE instructions (not supported on ancient Athlon CPUs)
+# /wd4996  disables warning (deprecated function called)
+# /wd4312  disables warning (cast 32-bit value to 64-bit pointer)
+# /MP enables parallel compiling
+# /MT link with static C runtime library
+# /Zi includes debugging information
+# /DFMT_UNICODE=0 disables Unicode support for fmtlib
 
-CCOMMONFLAGS = -nologo -DBLAK_PLATFORM_WINDOWS -DWIN32 \
-             -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE \
-             -D_WINSOCK_DEPRECATED_NO_WARNINGS /wd4996 \
-				 -TP -WX -GR- -EHsc- -arch:IA32
+CCOMMONFLAGS = -nologo -DBLAK_PLATFORM_WINDOWS -DWIN32 -DFMT_UNICODE=0 \
+             /wd4996 /wd4312 /FC \
+	     -TP -WX -GR- -EHsc- -MP -MT -Zi -std:c++20
 
 CNORMALFLAGS = $(CCOMMONFLAGS) -W2 /Ox
-CDEBUGFLAGS = $(CCOMMONFLAGS) -Zi -W3 -DBLAKDEBUG
+CDEBUGFLAGS = $(CCOMMONFLAGS) -W3 -DBLAKDEBUG
 CNODEBUGFLAGS = $(CCOMMONFLAGS) -W2 -DBLAKDEBUG
-LINKNORMALFLAGS =/release
+LINKNORMALFLAGS =/release /debug
 LINKDEBUGFLAGS = /debug
 LINKNODEBUGFLAGS =
-LINKCONSOLEFLAGS = -subsystem:console,5.01
-LINKWINDOWSFLAGS = -subsystem:windows,5.01
+LINKCONSOLEFLAGS = -subsystem:console
+LINKWINDOWSFLAGS = -subsystem:windows
 
 !ifdef DEBUG
 
@@ -101,12 +106,6 @@ LINKFLAGS = $(LINKNORMALFLAGS)
 !ifdef DLL
 LINKFLAGS = $(LINKFLAGS) /DLL
 !endif
-
-!ifdef DYNAMIC
-CFLAGS = $(CFLAGS) /MD
-!else
-CFLAGS = $(CFLAGS) /MT
-!endif DYNAMIC
 
 !ifdef NODPRINTFS
 CFLAGS = $(CFLAGS) -DNODPRINTFS
@@ -134,5 +133,5 @@ MAKEBGF = $(BLAKBINDIR)\makebgf
 
 # environment variables for compiler
 
-LIB = $(LIB);$(BLAKLIBDIR);$(TOPDIR)\miles\lib
-INCLUDE = $(INCLUDE);$(BLAKINCLUDEDIR);$(TOPDIR)\miles\include
+LIB = $(LIB);$(BLAKLIBDIR)
+INCLUDE = $(INCLUDE);$(BLAKINCLUDEDIR);$(LIBARCHIVEDIR);$(LIBPNGDIR);$(ZLIBDIR);$(OPENALDIR)\include;$(FMTLIBDIR);

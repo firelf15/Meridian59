@@ -13,9 +13,9 @@
 #define _CODEGEN_H
 
 /* Macros to move around a file */
-#define FileCurPos(f) lseek(f, 0, SEEK_CUR)
-#define FileGoto(f, pos) lseek(f, pos, SEEK_SET)
-#define FileGotoEnd(f) lseek(f, 0, SEEK_END)
+#define FileCurPos(f) ftell(f)
+#define FileGoto(f, pos) fseek(f, pos, SEEK_SET)
+#define FileGotoEnd(f) fseek(f, 0, SEEK_END)
 
 typedef unsigned char BYTE;
 #define MAX_LOCALS 255      /* Greatest # of local variables allowed */
@@ -34,21 +34,21 @@ typedef struct {
 				 */
 } *loop_type, loop_struct;
 
-extern int codegen_ok;          /* Did codegen complete successfully? */
+extern bool codegen_ok;          /* Did codegen complete successfully? */
 
-void OutputOpcode(int outfile, opcode_type opcode);
-void OutputByte(int outfile, BYTE datum);
-void OutputInt(int outfile, int datum);
-void OutputConstant(int outfile, const_type c);
-void OutputGotoOffset(int outfile, int source, int destination);
-void OutputBaseExpression(int outfile, expr_type expr);
-void BackpatchGoto(int outfile, int source, int destination);
+void OutputOpcode(FILE *outfile, opcode_type opcode);
+void OutputByte(FILE *outfile, BYTE datum);
+void OutputInt(FILE *outfile, int datum);
+void OutputConstant(FILE *outfile, const_type c);
+void OutputGotoOffset(FILE *outfile, int source, int destination);
+void OutputBaseExpression(FILE *outfile, expr_type expr);
+void BackpatchGoto(FILE *outfile, int source, int destination);
 
 void codegen_error(const char *fmt, ...);
 int const_to_int(const_type c);
 int set_source_id(opcode_type *opcode, int sourcenum, expr_type e);
 int set_dest_id(opcode_type *opcode, id_type id);
-int is_base_level(expr_type e);
+bool is_base_level(expr_type e);
 id_type make_temp_var(int idnum);
 int flatten_expr(expr_type e, id_type destvar, int maxlocal);
 int simplify_expr(expr_type expr, int maxlocal);

@@ -133,6 +133,7 @@ enum {
    BP_REQ_BUY               = 124,
    BP_REQ_BUY_ITEMS         = 125,
    BP_CHANGE_DESCRIPTION    = 126,
+   BP_REQ_INVENTORY_MOVE    = 127,
 
    BP_PLAYER                = 130,
    BP_STAT                  = 131,
@@ -214,6 +215,7 @@ enum {
    BP_SECTOR_SCROLL         = 236,
    BP_SET_VIEW              = 237,
    BP_RESET_VIEW            = 238,
+   BP_REQ_GET_FROM_CONTAINER  = 239,
 };
 
 // User commands (in BP_USERCOMMAND message)
@@ -308,9 +310,11 @@ enum {
 enum { STAT_INT = 1, STAT_RES = 2, };
 
 /* Statistics group types */
-enum {
-   STATS_NUMERIC    = 1,    // Numeric values
-   STATS_LIST       = 2,    // Items in a list
+// Needs to match server-side values
+enum StatGroupType : unsigned char {
+   INVALID_TYPE     = 0,    // Invalid type
+   STATS_NUMERIC    = 1,    // Numeric values = STAT_VALUE
+   STATS_LIST       = 2,    // Items in a list = STAT_LIST
 };
 
 /* Enchantment types */
@@ -488,6 +492,16 @@ enum {
    SL_FLICKER_ON       = 1,         // Turn flickering on
    SL_FLICKER_OFF      = 2,         // Turn flickering off
 };
+
+/* Item rarity designations used for different object presentations */
+typedef enum {
+   ITEM_RARITY_GRADE_NORMAL       = 0,
+   ITEM_RARITY_GRADE_UNCOMMON     = 1,
+   ITEM_RARITY_GRADE_RARE         = 2,
+   ITEM_RARITY_GRADE_LEGENDARY    = 4,
+   ITEM_RARITY_GRADE_UNIDENTIFIED = 100,
+   ITEM_RARITY_GRADE_CURSED       = 200,
+} item_rarity_grade;
 
 /* Size in bytes of numbers in protocol */
 #define SIZE_TYPE            1

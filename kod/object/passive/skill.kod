@@ -190,7 +190,7 @@ messages:
    "If a skill requires a special cost or requirement of some sort, that"
    "cost goes here.  Example: picking locks may require thieves tools."
    {
-      local oOwner, i;
+      local oOwner;
 
       if Send(who,@HasForgetEnchantment,#what=self)
       {
@@ -292,13 +292,13 @@ messages:
    }
 
    ImproveAbility(who=$,target=$,bonus=0)
-   "Made a seperate area by Damion, 3/24."
+   "Made a separate area by Damion, 3/24."
    "Put initial random check first to reduce server load."
    "ImproveAbility depends on four factors:  a player's intellect, the"
    "player's primerequisite stat for this spell, the level of the spell"
    "and the level the player has already acquired."
    {
-      local difficulty, iability, intellect, requisitestat, increase_chance,
+      local iability, requisitestat, increase_chance,
             iRandom, iInitialChance, oOwner;
 
       % Monsters can cast spells, can't improve in them   
@@ -376,7 +376,7 @@ messages:
 
    GetInitialChance(who=$)
    {
-      local iBonus, iFaction, iFinal;
+      local iBonus, iFinal;
 
       % Give up to a 50% bonus to the initial chance to learn for high intellect.
       iBonus = (viChance_to_increase * Send(who,@GetIntellect)) / 100;

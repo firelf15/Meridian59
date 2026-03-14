@@ -40,7 +40,7 @@
  static Cache grid_cache;
  static Cache object_cache;
 
- static Bool IdCacheBitmapCompare(void *idnum, void *b);
+ static bool IdCacheBitmapCompare(void *idnum, void *b);
  static void CacheAddBitmap(Cache *cache, cache_bitmap bitmap);
  static cache_bitmap CacheFindBitmap(Cache *cache, ID id);
  static void CacheClear(Cache *cache);
@@ -49,7 +49,7 @@
  * IdCacheBitmapCompare: Compare a # and a cache bitmap; 
  *   return nonzero if # equals bitmap's id.
  */
- Bool IdCacheBitmapCompare(void *idnum, void *b)
+ bool IdCacheBitmapCompare(void *idnum, void *b)
  {  
     return *((ID *) idnum) == ((cache_bitmap) b)->idnum;
  }
@@ -87,8 +87,8 @@ void CacheInitialize(void)
   // Set aside up to 1/4 of free memory for caches
   mem_available = statex.ullAvailPhys / 4;
   
-  object_cache.max_size = max(mem_available / 2, config.ObjectCacheMin );
-  grid_cache.max_size   = max(mem_available / 2, config.GridCacheMin );
+  object_cache.max_size = std::max(mem_available / 2, (DWORDLONG)config.ObjectCacheMin );
+  grid_cache.max_size   = std::max(mem_available / 2, (DWORDLONG)config.GridCacheMin );
   
   debug(("%12d bytes for object cache\n", object_cache.max_size));
   debug(("%12d bytes for grid cache\n", grid_cache.max_size));

@@ -27,13 +27,15 @@
 
 #include "client.h"
 
-#define ANIMATE_INTERVAL 165       // ms between background animation updates
-#define FLICKER_LEVEL (LIGHT_LEVELS/2)
-#define FLASH_LEVEL (LIGHT_LEVELS/2)
+#define ANIMATE_INTERVAL 8  // ms between background animation updates (8.3333 = 120fps)
 #define TIME_FLASH 1000
 
-static int  animation_timer = 0;   // id of animation timer, or 0 if none
+static const float FLICKER_LEVEL = LIGHT_LEVELS / 2.0f;  // Light adjustment range for flickering objects
+static const float FLASH_LEVEL = LIGHT_LEVELS / 2.0f;    // Light adjustment range for flashing objects
+
+static int animation_timer = 0;   // id of animation timer, or 0 if none
 static DWORD timeLastFrame;
+static const int flickerTimer = FLICKER_PERIOD;  // Global timer for OF_FLICKERING objects (milliseconds)
 
 #define TIME_FULL_OBJECT_PHASE 1800
 static int phaseStates[] = {
@@ -46,11 +48,11 @@ extern room_type current_room;
 extern player_info player;
 
 /* local function prototypes */
-static Bool AnimateObjects(int dt);
-static Bool AnimateGrids(int dt);
-static Bool AnimateProjectiles(int dt);
-static Bool AnimateBackgroundOverlays(int dt);
-static Bool AnimatePlayerOverlays(int dt);
+static bool AnimateObjects(int dt);
+static bool AnimateGrids(int dt);
+static bool AnimateProjectiles(int dt);
+static bool AnimateBackgroundOverlays(int dt);
+static bool AnimatePlayerOverlays(int dt);
 static void AnimationResetSingle(Animate *a);
 /************************************************************************/
 void AnimationTimerStart(void)
@@ -72,21 +74,20 @@ void AnimationTimerAbort(void)
       animation_timer = 0;
    }
 }
-/************************************************************************/
-void AnimationSleep(void)
-{
-   Sleep(ANIMATE_INTERVAL);
-}
 
 DWORD GetFrameTime(void)
 {
    return timeLastFrame;
 }
 
+float GetFlickerLevel(void)
+{
+   return FLICKER_LEVEL;
+}
 /************************************************************************/
 void AnimationTimerProc(HWND hwnd, UINT timer)
 {
-   Bool need_redraw = False;
+   bool need_redraw = false;
    static DWORD last_animate_time = 0;
    DWORD dt, now;
 
@@ -101,7 +102,7 @@ void AnimationTimerProc(HWND hwnd, UINT timer)
 	   return;
    }
 
-   config.quickstart = FALSE;
+   config.quickstart = false;
    now = timeGetTime();
    dt = now - last_animate_time;
    last_animate_time = now;
@@ -111,26 +112,23 @@ void AnimationTimerProc(HWND hwnd, UINT timer)
    ModuleEvent(EVENT_ANIMATE, dt);
 
    /* Send event to non-module child windows */
-   if (config.animate)
-   {
-      Lagbox_Animate(dt);
-   }
+   Lagbox_Animate(dt);
 
    /* Animate the first-person view elements */
-   if (config.animate && GetGameDataValid())
+   if (GetGameDataValid())
    {
       // Avoid short-circuiting OR
-      need_redraw |= ObjectsMove(dt);
-      need_redraw |= ProjectilesMove(dt);
-      need_redraw |= AnimateObjects(dt);
-      need_redraw |= AnimateRoom(&current_room, dt);
-      need_redraw |= AnimateProjectiles(dt);
-      need_redraw |= AnimatePlayerOverlays(dt);
-      need_redraw |= AnimateBackgroundOverlays(dt);
+      need_redraw = ObjectsMove(dt) || need_redraw;
+      need_redraw = ProjectilesMove(dt) || need_redraw;
+      need_redraw = AnimateObjects(dt) || need_redraw;
+      need_redraw = AnimateRoom(&current_room, dt) || need_redraw;
+      need_redraw = AnimateProjectiles(dt) || need_redraw;
+      need_redraw = AnimatePlayerOverlays(dt) || need_redraw;
+      need_redraw = AnimateBackgroundOverlays(dt) || need_redraw;
 
       AnimateDescription(dt);
 
-      need_redraw |= AnimateEffects(dt);
+      need_redraw = AnimateEffects(dt) || need_redraw;
       if (need_redraw)
 	 RedrawAll();
    }
@@ -138,16 +136,17 @@ void AnimationTimerProc(HWND hwnd, UINT timer)
    if (GetGameDataValid())
       RedrawForce();
 
-   return;
+   // Update 3D audio listener position/orientation
+   UpdateLoopingSounds(player.x >> LOG_FINENESS, player.y >> LOG_FINENESS, player.angle);
 }
 /************************************************************************/
 /* 
- * Animate objects in current room; return True if any was animated.
+ * Animate objects in current room; return true if any was animated.
  *   dt is number of milliseconds since last time animation timer went off.
  */
-Bool AnimateObjects(int dt)
+bool AnimateObjects(int dt)
 {
-   Bool need_redraw = False;
+   bool need_redraw = false;
    list_type l;
 
    for (l = current_room.contents; l != NULL; l = l->next)
@@ -162,38 +161,76 @@ Bool AnimateObjects(int dt)
       
       if (r->obj.animate->animation == ANIMATE_NONE && old_animate != ANIMATE_NONE && r->moving)
       {
-	 RoomObjectSetAnimation(r, True);
-	 r->motion.move_animating = True;
+	 RoomObjectSetAnimation(r, true);
+	 r->motion.move_animating = true;
       }
    }
    return need_redraw;
 }
 /************************************************************************/
 /*
- * AnimateObject:  Animate a single object; return True iff animated.
+ * AnimateObject:  Animate a single object; return true iff animated.
  *   dt is number of milliseconds since last time animation timer went off.
  */
 
-Bool AnimateObject(object_node *obj, int dt)
+bool AnimateObject(object_node *obj, int dt)
 {
-   Bool need_redraw = False;
+   bool need_redraw = false;
    list_type over_list;
 
-   if (OF_FLICKERING == (OF_BOUNCING & obj->flags))
+   if (OF_FLICKERING == (OF_FLICKERING & obj->flags))
    {
-      obj->lightAdjust = rand() % FLICKER_LEVEL;
-      need_redraw = TRUE;
+        // Initialize flicker time with random offset on first use to desynchronize lights
+        if (obj->flickerTime == 0)
+        {
+            // Use object ID as seed for consistent but unique offsets
+            obj->flickerTime = (obj->id * 137) % 10000;  // Random offset 0-10 seconds
+        }
+         
+        // Dramatic campfire-style flicker with independent per-object timing
+        obj->flickerTime += dt;
+         
+        // Flicker animation wave parameters
+        // Using prime-like frequencies prevents synchronization between lights
+        static const float waveAmplitudes[] = { 1.3f, 1.1f, 0.9f, 1.4f, 1.2f };
+        static const float waveFrequencies[] = { 3.14f, 7.0f, 11.0f, 2.0f, 0.62f };
+        static constexpr int waveCount = sizeof(waveAmplitudes) / sizeof(waveAmplitudes[0]);
+         
+        // Ensure amplitudes and frequencies arrays have the same length
+        static_assert(waveCount == sizeof(waveFrequencies) / sizeof(waveFrequencies[0]),
+                    "waveAmplitudes and waveFrequencies must have the same number of elements");
+         
+        // Compute sum of amplitudes (for normalization)
+        static const float amplitudeSum = waveAmplitudes[0] + waveAmplitudes[1] + 
+                                        waveAmplitudes[2] + waveAmplitudes[3] + 
+                                        waveAmplitudes[4];
+         
+        float t = (float)obj->flickerTime / 1000.0f;
+
+        // Combine multiple sine waves at different frequencies for organic flickering
+        float flicker = 0.0f;
+        for (int i = 0; i < waveCount; i++)
+        {
+            flicker += sinf(t * waveFrequencies[i]) * waveAmplitudes[i];
+        }
+         
+        // Normalize to 0.0-1.0 range
+        flicker = flicker / amplitudeSum + 0.5f;
+        flicker = std::clamp(flicker, 0.0f, 1.0f);
+         
+        obj->lightAdjust = (int)(flicker * GetFlickerLevel());
+        need_redraw = true;
    }
 
-   if (OF_FLASHING == (OF_BOUNCING & obj->flags))
+   if (OF_FLASHING == (OF_FLASHING & obj->flags))
    {
       DWORD angleFlash;
-      obj->bounceTime += min(dt,50);
+      obj->bounceTime += std::min(dt,50);
       if (obj->bounceTime > TIME_FLASH)
-	 obj->bounceTime -= TIME_FLASH;
+         obj->bounceTime -= TIME_FLASH;
       angleFlash = NUMDEGREES * obj->bounceTime / TIME_FLASH;
       obj->lightAdjust = FIXED_TO_INT(fpMul(FLASH_LEVEL, SIN(angleFlash)));
-      need_redraw = TRUE;
+      need_redraw = true;
    }
 
    if (obj->animate->animation != ANIMATE_NONE)
@@ -201,18 +238,18 @@ Bool AnimateObject(object_node *obj, int dt)
       object_bitmap_type obj_bmap;
       obj_bmap = FindObjectBitmap(obj->icon_res);
       if (obj_bmap != NULL)
-	 need_redraw |= AnimateSingle(obj->animate, BitmapsNumGroups(obj_bmap->bmaps), dt);
+         need_redraw |= AnimateSingle(obj->animate, BitmapsNumGroups(obj_bmap->bmaps), dt);
    }
    
    if (OF_PHASING == (OF_PHASING & obj->flags))
    {
       int anglePhase;
-      obj->phaseTime += min(dt,40);
+      obj->phaseTime += std::min(dt,40);
       if (obj->phaseTime > TIME_FULL_OBJECT_PHASE)
-	 obj->phaseTime -= TIME_FULL_OBJECT_PHASE;
+         obj->phaseTime -= TIME_FULL_OBJECT_PHASE;
       anglePhase = numPhases * obj->phaseTime / TIME_FULL_OBJECT_PHASE;
       obj->flags = (~OF_EFFECT_MASK & obj->flags) | phaseStates[anglePhase];
-      need_redraw = TRUE;
+      need_redraw = true;
    }
    // Animate object's overlays
    for (over_list = *(obj->overlays); over_list != NULL; over_list = over_list->next)
@@ -232,15 +269,15 @@ Bool AnimateObject(object_node *obj, int dt)
 }
 /************************************************************************/
 /* 
- * Animate projectiles active in in current room; return True if any was animated.
+ * Animate projectiles active in in current room; return true if any was animated.
  *   dt is number of milliseconds since last time animation timer went off.
  */
-Bool AnimateProjectiles(int dt)
+bool AnimateProjectiles(int dt)
 {
    object_bitmap_type obj;
    list_type l;
    Projectile *p;
-   Bool need_redraw = False, retval;
+   bool need_redraw = false, retval;
 
    for (l = current_room.projectiles; l != NULL; l = l->next)
    {
@@ -260,14 +297,14 @@ Bool AnimateProjectiles(int dt)
 }
 /************************************************************************/
 /* 
- * Animate background overlays in current room; return True if any was animated.
+ * Animate background overlays in current room; return true if any was animated.
  *   dt is number of milliseconds since last time animation timer went off.
  */
-Bool AnimateBackgroundOverlays(int dt)
+bool AnimateBackgroundOverlays(int dt)
 {
    Overlay *overlay;
    list_type l;
-   Bool need_redraw = False, retval;
+   bool need_redraw = false, retval;
    object_bitmap_type obj_bmap;
 
    for (l = current_room.bg_overlays; l != NULL; l = l->next)
@@ -288,13 +325,13 @@ Bool AnimateBackgroundOverlays(int dt)
 }
 /************************************************************************/
 /* 
- * Animate player overlays; return True if any was animated.
+ * Animate player overlays; return true if any was animated.
  *   dt is number of milliseconds since last time animation timer went off.
  */
-Bool AnimatePlayerOverlays(int dt)
+bool AnimatePlayerOverlays(int dt)
 {
    int i;
-   Bool need_redraw = False, retval;
+   bool need_redraw = false, retval;
 
    for (i=0; i < NUM_PLAYER_OVERLAYS; i++)
    {
@@ -315,13 +352,13 @@ Bool AnimatePlayerOverlays(int dt)
 /************************************************************************/
 /*
  * AnimateSingle:  Animate the given animation structure for a PDIB with the
- *   given number of groups.  Return True iff the display bitmap changes.
+ *   given number of groups.  Return true iff the display bitmap changes.
  *   dt is number of milliseconds since last time animation timer went off.
  *   If num_groups is 0, act as if the PDIB has an infinite number of groups.
  */
-Bool AnimateSingle(Animate *a, int num_groups, int dt)
+bool AnimateSingle(Animate *a, int num_groups, int dt)
 {
-   Bool need_redraw = False;
+   bool need_redraw = false;
 
    switch (a->animation)
    {
@@ -344,7 +381,7 @@ Bool AnimateSingle(Animate *a, int num_groups, int dt)
       
       // Reset object timer
       a->tick = a->period;
-      need_redraw = True;
+      need_redraw = true;
       break;
       
    case ANIMATE_ONCE:
@@ -362,7 +399,7 @@ Bool AnimateSingle(Animate *a, int num_groups, int dt)
 
       // Reset object timer
       a->tick = a->period;
-      need_redraw = True;
+      need_redraw = true;
       break;
 
    default:
@@ -380,37 +417,6 @@ Bool AnimateSingle(Animate *a, int num_groups, int dt)
    return need_redraw;
 }
 
-/************************************************************************/
-/*
- * VerifyAnimation:  See if given animation should be performed, given whether
- *   animation is currently on.  If animation should be performed, return True
- *   (this may modify given animation structure if a modified animation should
- *   be performed).  If animation shouldn't be done at all, return False.
- */
-Bool VerifyAnimation(Animate *a)
-{
-   if (config.animate)
-      return True;
-
-   switch (a->animation)
-   {
-   case ANIMATE_NONE:
-      return True;
-      
-   case ANIMATE_CYCLE:
-      return False;
-      
-   case ANIMATE_ONCE:
-      // Skip right to end frame of animation
-      a->animation = ANIMATE_NONE;
-      a->group     = a->group_final;
-      return True;
-
-   default:
-      debug(("Unknown animation type %d in VerifyAnimation\n", a->animation));
-      return False;
-   }
-}
 /************************************************************************/
 /*
  * AnimateStop:  Stop given animation.

@@ -14,7 +14,6 @@
 #define ATTACK_DELAY 1000  // Minimum number of milliseconds between user attacks
 
 extern player_info player;
-extern room_type current_room;
 
 static SendOfferDialogStruct info; /* Stuff to send to offer dialog */
 
@@ -26,8 +25,8 @@ static ID idTarget = INVALID_ID;		//	Target object, or INVALID_ID if no target s
 static void ApplyCallback(ID obj2);
 static void SetDescParamsByRoomObject(room_contents_node *r, HWND hwnd);
 
-extern BOOL		gbMouselook;
-extern RECT		gD3DRect;
+extern bool gbMouselook;
+extern RECT gD3DRect;
 /************************************************************************/
 /*
  * UserInventoryList:  Bring up a dialog for user to select multiple objects
@@ -96,7 +95,10 @@ void UserAttackClosest(int action)
 		if (FindVisibleObjectById(idTarget))
 			RequestAttack(ATTACK_NORMAL, idTarget);
 		else
-			GameMessage(GetString(hInst, IDS_TARGETNOTVISIBLEFORATTACK));
+         if (idTarget == player.id)
+            GameMessage(GetString(hInst, IDS_CANTATTACKSELF));
+         else
+			   GameMessage(GetString(hInst, IDS_TARGETNOTVISIBLEFORATTACK));
 		return;
 	}
 	
@@ -133,8 +135,9 @@ void UserPickup(void)
  */
 void GotObjectContents(ID object_id, list_type contents)
 {
-   list_type sel_list, l;
+   list_type sel_list, l, sorted_list;
    room_contents_node *r;
+   sorted_list = NULL;
 
    r = GetRoomObjectById(object_id);
 
@@ -144,13 +147,18 @@ void GotObjectContents(ID object_id, list_type contents)
 	 GameMessagePrintf(GetString(hInst, IDS_EMPTY), LookupNameRsc(r->obj.name_res));
       return;
    }
-
-   sel_list = DisplayLookList(hMain, GetString(hInst, IDS_GET), contents, LD_MULTIPLESEL);   
+   // Separate contents into number items and other items and alpha sort
+   for (l = contents; l != NULL; l = l->next)
+   {
+      sorted_list = list_add_sorted_item(sorted_list, (l->data), CompareObjectNameAndNumber);
+   }
+   sel_list = DisplayLookList(hMain, GetString(hInst, IDS_GET), sorted_list, LD_MULTIPLESEL | LD_AMOUNTS);   
 
    for (l = sel_list; l != NULL; l = l->next)
-      RequestPickup(((room_contents_node *) (l->data))->obj.id);
+      RequestPickupFromContainer(((room_contents_node *) (l->data)));
 
    ObjectListDestroy(sel_list);
+   ObjectListDestroy(sorted_list);
 }
 /************************************************************************/
 /*
@@ -314,13 +322,13 @@ void UserActivateMouse(void)
  */
 void UserDrop(void)
 {
-   list_type sel_list, l;
+   list_type sel_list;
    
    sel_list = DisplayLookList(hMain, GetString(hInst, IDS_DROP), 
 			      player.inventory, LD_MULTIPLESEL | LD_AMOUNTS | LD_SINGLEAUTO);
 
-   for (l = sel_list; l != NULL; l = l->next)
-      RequestDrop((object_node *) (l->data));
+   if (sel_list != NULL)
+      RequestDrop(sel_list);
 
    ObjectListDestroy(sel_list);
 }
@@ -398,12 +406,12 @@ void UserUnuse(void)
 /************************************************************************/
 /*
  * UserToggleMusic: Called when user turns music on or off.
- *   music_on is True iff user just turned music on.
+ *   music_on is true iff user just turned music on.
  */
-void UserToggleMusic(Bool music_on)
+void UserToggleMusic(bool music_on)
 {
    if (music_on)
-      MusicStart();
+      MusicRestart();
    else MusicAbort();
 }
 /************************************************************************/
@@ -507,9 +515,6 @@ void UserBuy(void)
  */
 void UserDeposit(void)
 {
-#if 0
-   GameMessage("DEPOSIT (not money) not developed yet");
-#else
    list_type sel_list, items, recipients;
    ID recipient;
 
@@ -560,7 +565,6 @@ void UserDeposit(void)
    /* Send offer to server */
    RequestDeposit(recipient, items);
    ObjectListDestroy(items);
-#endif
 }
 /************************************************************************/
 /*
@@ -674,7 +678,7 @@ void SetDescParamsByRoomObject(room_contents_node *r, HWND hwnd)
  * UserTargetNextOrPrevious:  Called when the user asks to target "next" object. Sets idTarget.
  *								ajw
  */
-void UserTargetNextOrPrevious(Bool bTargetNext)
+void UserTargetNextOrPrevious(bool bTargetNext)
 {
 	list_type	object_list;
 	int			iListIndex = 0;
@@ -746,7 +750,7 @@ void UserTargetNextOrPrevious(Bool bTargetNext)
  */
 void SetUserTargetID(ID idTargetNew)
 {
-	extern Bool map;
+	extern bool map;
 
 	if (map)
 		idTargetNew = INVALID_ID;
@@ -770,14 +774,11 @@ ID GetUserTargetID()
 
 void UserMouselookToggle(void)
 {
-	if (FALSE == gbMouselook)
+	if (false == gbMouselook)
 	{
 		RECT		rect;
-//		WINDOWINFO	windowInfo;
 		POINT	pt, center;
-//		int		x, y;
 
-//		GetWindowInfo(hMain, &windowInfo);
 		GetClientRect(hMain, &rect);
 		pt.x = rect.left;
 		pt.y = rect.top;
@@ -789,29 +790,20 @@ void UserMouselookToggle(void)
 		center.x += gD3DRect.left + pt.x;
 		center.y += gD3DRect.top + pt.y;
 
-//		x = (gD3DRect.right - gD3DRect.left) / 2;
-//		y = (gD3DRect.bottom - gD3DRect.top) / 2;
-
-//		x += gD3DRect.left + windowInfo.rcClient.left;
-//		y += gD3DRect.top + windowInfo.rcClient.top;
-
-		gbMouselook = TRUE;
-//		GetClientRect(hMain, &rect);
-//		GetCursorPos(&pt);
-//		SetCursorPos(rect.right / 2, rect.bottom / 2);
+		gbMouselook = true;
 		SetCursorPos(center.x, center.y);
 		while (ShowCursor(FALSE) >= 0)
 			ShowCursor(FALSE);
 	}
 	else
 	{
-		gbMouselook = FALSE;
+		gbMouselook = false;
 		while (ShowCursor(TRUE) < 0)
 			ShowCursor(TRUE);
 	}
 }
 
-Bool UserMouselookIsEnabled(void)
+bool UserMouselookIsEnabled(void)
 {
 	return gbMouselook;
 }

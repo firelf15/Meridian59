@@ -71,14 +71,14 @@ void GameClientExit(session_node *s)
 
 void GameExit(session_node *s)
 {
-   s->exiting_state = True;	/* in case the write fails, don't let it call us again */
+   s->exiting_state = true;	/* in case the write fails, don't let it call us again */
 
    if (s->game->object_id == INVALID_OBJECT)
       GameClientExit(s);
    else
       ClientHangupToBlakod(s);
 
-   s->exiting_state = False;
+   s->exiting_state = false;
 }
 
 void GameProcessSessionTimer(session_node *s)
@@ -99,7 +99,7 @@ void GameProcessSessionTimer(session_node *s)
    if (GetTime() - s->game->game_last_message_time > ConfigInt(INACTIVE_GAME))
    {
       lprintf("GameProcessSessionTimer logging out ACCOUNT %i (%s) which hasn't been heard from.\n",
-	 s->account->account_id, s->account->name);
+              s->account->account_id, s->account->name.c_str());
       HangupSession(s);
       return;
    }
@@ -144,7 +144,7 @@ void GameProcessSessionBuffer(session_node *s)
    /* need to copy only as many bytes as we can hold */
    while (s->receive_list != NULL)
    {
-      if (PeekSessionBytes(s,HEADERBYTES,&msg) == False)
+      if (PeekSessionBytes(s,HEADERBYTES,&msg) == false)
 	 return;
 
       if (msg.len != msg.len_verify)
@@ -166,7 +166,7 @@ void GameProcessSessionBuffer(session_node *s)
       }
       
       /* now read the header for real, plus the actual data */
-      if (ReadSessionBytes(s,msg.len+HEADERBYTES,&msg) == False)
+      if (ReadSessionBytes(s,msg.len+HEADERBYTES,&msg) == false)
 	 return;
 
       /* dprintf("got crc %08x\n",msg.crc16); */
@@ -183,7 +183,7 @@ void GameProcessSessionBuffer(session_node *s)
 
       if (msg.crc16 != security && !s->seeds_hacked)
       {
-			s->seeds_hacked = True;
+			s->seeds_hacked = true;
 			if (ConfigBool(SECURITY_LOG_SPOOFS))
 			{
 				lprintf("GameProcessSessionBuffer found invalid security account %i\n",
@@ -222,7 +222,7 @@ void GameProcessSessionBuffer(session_node *s)
       }
       
       /* if hung up, don't touch */
-      if (s->hangup == True)
+      if (s->hangup == true)
 	 return;
 
       if (s->state != STATE_GAME)
@@ -275,7 +275,7 @@ void GameSyncProcessSessionBuffer(session_node *s)
 
    while (s->receive_list != NULL)
    {
-      if (ReadSessionBytes(s,1,&ch) == False)
+      if (ReadSessionBytes(s,1,&ch) == false)
 	 return;
       
       GameSyncInputChar(s,ch);
@@ -353,10 +353,10 @@ void GameWarnLowCredits(session_node *s)
    parm_node blak_parm[1];
    char text[100];
 
-   sprintf(text,"You have only %i credit%s remaining",s->account->credits/100,
+   snprintf(text, sizeof(text), "You have only %i credit%s remaining",s->account->credits/100,
 	   (s->account->credits/100 == 1) ? "" : "s");
 
-   SetTempString(text,strlen(text));
+   SetTempString(text, (int) strlen(text));
    str_val.v.tag = TAG_TEMP_STRING;
    str_val.v.data = 0;		/* the data field doesn't matter for TAG_TEMP_STRING */
 
@@ -531,7 +531,7 @@ void GameProtocolParse(session_node *s,client_msg *msg)
       new_password[len] = 0; /* null terminate string */
       index += 2 + len;
 
-      if (strcmp(s->account->password,password))
+      if (s->account->password == password)
       {
 	 AddByteToPacket(BP_PASSWORD_NOT_OK);
 	 SendPacket(s->session_id);
@@ -573,35 +573,28 @@ void GameTryGetUser(session_node *s)
 {
    char *ptr;
 
-   if (0 && s->account->type == ACCOUNT_GUEST) /* let guests choose too */
-   {
-      GameStartUser(s,GetFirstUserByAccountID(s->account->account_id));
-   }
-   else
-   {
-      AddByteToPacket(BP_CHARACTERS);
-      AddShortToPacket((short)CountUserByAccountID(s->account->account_id));
-      ForEachUserByAccountID(GameSendEachUserChoice,s->account->account_id);
-      AddStringToPacket(GetMotdLength(),GetMotd());
-
-      /* advertising stuff */
-      AddByteToPacket(2);
-
-      ptr = LockConfigStr(ADVERTISE_FILE1);
-      AddStringToPacket(strlen(ptr),ptr);
-      UnlockConfigStr();
-      ptr = LockConfigStr(ADVERTISE_URL1);
-      AddStringToPacket(strlen(ptr),ptr);
-      UnlockConfigStr();
-      ptr = LockConfigStr(ADVERTISE_FILE2);
-      AddStringToPacket(strlen(ptr),ptr);
-      UnlockConfigStr();
-      ptr = LockConfigStr(ADVERTISE_URL2);
-      AddStringToPacket(strlen(ptr),ptr);
-      UnlockConfigStr();
-      
-      SendPacket(s->session_id);   
-   }
+   AddByteToPacket(BP_CHARACTERS);
+   AddShortToPacket((short)CountUserByAccountID(s->account->account_id));
+   ForEachUserByAccountID(GameSendEachUserChoice,s->account->account_id);
+   AddStringToPacket(GetMotdLength(),GetMotd());
+   
+   /* advertising stuff */
+   AddByteToPacket(2);
+   
+   ptr = LockConfigStr(ADVERTISE_FILE1);
+   AddStringToPacket(strlen(ptr),ptr);
+   UnlockConfigStr();
+   ptr = LockConfigStr(ADVERTISE_URL1);
+   AddStringToPacket(strlen(ptr),ptr);
+   UnlockConfigStr();
+   ptr = LockConfigStr(ADVERTISE_FILE2);
+   AddStringToPacket(strlen(ptr),ptr);
+   UnlockConfigStr();
+   ptr = LockConfigStr(ADVERTISE_URL2);
+   AddStringToPacket(strlen(ptr),ptr);
+   UnlockConfigStr();
+   
+   SendPacket(s->session_id);   
 }
 
 void GameSendEachUserChoice(user_node *u)
@@ -614,8 +607,8 @@ void GameSendEachUserChoice(user_node *u)
    name_val.int_val = SendTopLevelBlakodMessage(u->object_id,USER_NAME_MSG,0,NULL);
    if (name_val.v.tag != TAG_RESOURCE)
    {
-      eprintf("GameSendEachUserChoice object %i has non-resource name %i,%i\n",
-	      u->object_id,name_val.v.tag,name_val.v.data);
+      eprintf("GameSendEachUserChoice object %i has non-resource name %s\n",
+              u->object_id,fmt(name_val));
       AddStringToPacket(0,"");
    }
    else
@@ -623,7 +616,7 @@ void GameSendEachUserChoice(user_node *u)
       r = GetResourceByID(name_val.v.data);
       if (r == NULL)
       {
-	 bprintf("GameSendEachUserChoice can't find resource %i as a resource/string\n",
+	 bprintf("GameSendEachUserChoice can't find resource %" PRId64 " as a resource/string\n",
 		 name_val.v.data);
 	    return;
       }
@@ -694,7 +687,7 @@ void GameDMCommand(session_node *s,int type,char *str)
 	 dprintf("DM Command GOROOM disabled for DMs; must be Admin.");
 	 break;
       }
-      sprintf(buf,"send object %i teleportto rid int %s",s->game->object_id,str);
+      snprintf(buf, sizeof(buf), "send object %i teleportto rid int %s",s->game->object_id,str);
       SendSessionAdminText(s->session_id,"~B> %s\n",buf); /* echo it to 'em */
       TryAdminCommand(s->session_id,buf); 
       break;
@@ -704,7 +697,7 @@ void GameDMCommand(session_node *s,int type,char *str)
 	 break;
       if (ConfigInt(RIGHTS_GOPLAYER) == ACCOUNT_ADMIN && acctype == ACCOUNT_DM)
 	 break;
-      sprintf(buf,"send object %i admingotoobject what object %s",s->game->object_id,str);
+      snprintf(buf, sizeof(buf), "send object %i admingotoobject what object %s",s->game->object_id,str);
       SendSessionAdminText(s->session_id,"~B> %s\n",buf); /* echo it to 'em */
       TryAdminCommand(s->session_id,buf); 
       break;
@@ -714,7 +707,7 @@ void GameDMCommand(session_node *s,int type,char *str)
 	 break;
       if (ConfigInt(RIGHTS_GETPLAYER) == ACCOUNT_ADMIN && acctype == ACCOUNT_DM)
 	 break;
-      sprintf(buf,"send object %s admingotoobject what object %i",str,s->game->object_id);
+      snprintf(buf, sizeof(buf), "send object %s admingotoobject what object %i",str,s->game->object_id);
       SendSessionAdminText(s->session_id,"~B> %s\n",buf); /* echo it to 'em */
       TryAdminCommand(s->session_id,buf); 
       break;

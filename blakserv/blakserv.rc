@@ -105,7 +105,7 @@ BEGIN
     LTEXT           "Version:",IDC_ABOUT_PIC_ICON,11,133,26,8
     LTEXT           "",IDC_ABOUT_TITLE,41,132,189,10,SS_SUNKEN
     LTEXT           "BlakSton Server",IDC_STATIC,11,58,220,8
-    LTEXT           "Copyright © 1994-2013 Andrew and Chris Kirmse",IDC_STATIC2,11,67,220,8
+    LTEXT           "Copyright © 1994-2024 Andrew and Chris Kirmse",IDC_STATIC2,11,67,220,8
     LTEXT           "All Rights Reserved",IDC_STATIC3,11,77,220,8
 END
 
@@ -158,6 +158,14 @@ BEGIN
     LISTBOX         IDC_DEBUG_LIST,0,124,325,52,WS_VSCROLL | WS_HSCROLL | WS_GROUP | WS_TABSTOP
 END
 
+IDD_COPYABLE_MESSAGE DIALOGEX 0, 0, 300, 120
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "BlakSton Server"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    EDITTEXT    IDC_MESSAGE_EDIT,10,10,280,80,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,125,100,50,14
+END
 
 /////////////////////////////////////////////////////////////////////////////
 //

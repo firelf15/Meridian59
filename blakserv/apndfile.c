@@ -24,13 +24,13 @@ void AppendTextFile(session_node *s,const char *filename,
    char save_name[MAX_PATH+FILENAME_MAX];
    int i;
 
-   sprintf(save_name,"%s%s",ConfigStr(PATH_FORMS),filename);
+   snprintf(save_name, sizeof(save_name), "%s%s",ConfigStr(PATH_FORMS),filename);
    if ((appendfile = fopen(save_name,"at")) == NULL)
    {
       eprintf("AppendTextFile can't open %s to write out new text!\n",save_name);
       dprintf("-------------------------------------------\n");
-      dprintf("From account %i, %s\n",s->account->account_id,s->account->name);
-      dprintf("%s\n\n",TimeStr(GetTime()));
+      dprintf("From account %i, %s\n",s->account->account_id,s->account->name.c_str());
+      dprintf("%s\n\n",TimeStr(GetTime()).c_str());
       for (i=0;i<len;i++)
 	 dprintf("%c",text[i]);
       dprintf("\n\n");
@@ -39,8 +39,8 @@ void AppendTextFile(session_node *s,const char *filename,
    }
 
    fprintf(appendfile,"-------------------------------------------\n");
-   fprintf(appendfile,"From account %i, %s\n",s->account->account_id,s->account->name);
-   fprintf(appendfile,"%s\n\n",TimeStr(GetTime()));
+   fprintf(appendfile,"From account %i, %s\n",s->account->account_id,s->account->name.c_str());
+   fprintf(appendfile,"%s\n\n",TimeStr(GetTime()).c_str());
    for (i=0;i<len;i++)
       fprintf(appendfile,"%c",text[i]);
    fprintf(appendfile,"\n\n");

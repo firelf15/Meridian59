@@ -17,6 +17,7 @@
  */
 
 #include "blakserv.h"
+#include <sstream>
 
 /* local function prototypes */
 void SynchedProtocolParse(session_node *s,client_msg *msg);
@@ -31,7 +32,7 @@ void SynchedAddDelFile(char *str);
 void SynchedInit(session_node *s)
 {
    /* if you ever get here, you ARE running our client */
-   s->blak_client = True;
+   s->blak_client = true;
    
    s->syn = (synched_data *)s->session_state_data;
 
@@ -73,7 +74,7 @@ void SynchedProcessSessionBuffer(session_node *s)
    /* need to copy only as many bytes as we can hold */
    while (s->receive_list != NULL)
    {
-      if (PeekSessionBytes(s,HEADERBYTES,&msg) == False)
+      if (PeekSessionBytes(s,HEADERBYTES,&msg) == false)
 	 return;
 
       if (msg.len != msg.len_verify || msg.seqno != 0)
@@ -95,7 +96,7 @@ void SynchedProcessSessionBuffer(session_node *s)
       }
       
       /* now read the header for real, plus the actual data */
-      if (ReadSessionBytes(s,msg.len+HEADERBYTES,&msg) == False)
+      if (ReadSessionBytes(s,msg.len+HEADERBYTES,&msg) == false)
 	 return;
 
 #if 0
@@ -112,7 +113,7 @@ void SynchedProcessSessionBuffer(session_node *s)
       SynchedProtocolParse(s,&msg);
 
       /* if hung up, don't touch */
-      if (s->hangup == True)
+      if (s->hangup == true)
 	 return;
 
       if (s->state != STATE_SYNCHED)
@@ -194,21 +195,21 @@ void SynchedProtocolParse(session_node *s,client_msg *msg)
       // The following line was commented out because I added support for the 3 4-byte integers
       // index += 12; /* 12 bytes future expansion space */
 
-      len = *(short *)(msg->data+index);
+      len = *(short *)(msg->data + index);
       if (index + 2 + len > msg->len) /* 2 = length word len */
-	 break;
-      if (len > sizeof(name))
-	 break;
-      memcpy(name,msg->data+index+2,len);
+         break;
+      if (len >= sizeof(name))
+         break;
+      memcpy(name, msg->data + index + 2, len);
       name[len] = 0; /* null terminate string */
       index += 2 + len;
       
-      len = *(short *)(msg->data+index);
+      len = *(short *)(msg->data + index);
       if (index + 2 + len > msg->len)
-	 break;
-      if (len > sizeof(name))
-	 break;
-      memcpy(password,msg->data+index+2,len);
+         break;
+      if (len >= sizeof(password))
+         break;
+      memcpy(password, msg->data + index + 2, len);
       password[len] = 0; /* null terminate string */
       index += 2 + len;
       
@@ -258,7 +259,7 @@ void SynchedProtocolParse(session_node *s,client_msg *msg)
       len = *(short *)(msg->data+index);
       if (index + 2 + len > msg->len)
          break;
-      if (len > sizeof(name))
+      if (len >= sizeof(name))
          break;
       memcpy(name,msg->data+index+2,len);
       name[len] = 0; /* null terminate string */
@@ -321,13 +322,12 @@ void SynchedAcceptLogin(session_node *s,char *name,char *password)
 {
    session_node *other;
    account_node *a;
-   int now = GetTime();
+   INT64 now = GetTime();
 
    a = AccountLoginByName(name); /* maps the GUEST_ACCOUNT_NAME into a real account */
 
    /* bad username, bad password, or suspended? */
-   if (a == NULL ||
-       (a->type != ACCOUNT_GUEST && strcmp(a->password,password) != 0))
+   if (a == NULL || a->password != password)
    {
       s->syn->failed_tries++;
       if (s->syn->failed_tries == ConfigInt(LOGIN_MAX_ATTEMPTS))
@@ -337,30 +337,9 @@ void SynchedAcceptLogin(session_node *s,char *name,char *password)
          HangupSession(s);
          return;
       }
-      if (!stricmp(name,ConfigStr(GUEST_ACCOUNT)))
-      {
-         AddByteToPacket(AP_GUEST);
-         AddByteToPacket(1); /* we're hanging 'em up */
-         AddIntToPacket(ConfigInt(GUEST_SERVER_MIN));
-         AddIntToPacket(ConfigInt(GUEST_SERVER_MAX));
-         
-         /*
-           char *too_many_str;
-           
-           too_many_str = ConfigStr(GUEST_TOO_MANY);
-           AddByteToPacket(AP_MESSAGE);
-           AddStringToPacket(strlen(too_many_str),too_many_str);
-           AddByteToPacket(LA_LOGOFF);
-         */
-         
-         SendPacket(s->session_id);
-         HangupSession(s);
-      }
-      else
-      {
-         AddByteToPacket(AP_LOGINFAILED);
-         SendPacket(s->session_id);
-      }
+      
+      AddByteToPacket(AP_LOGINFAILED);
+      SendPacket(s->session_id);
       return;
    }
 
@@ -399,16 +378,6 @@ void SynchedAcceptLogin(session_node *s,char *name,char *password)
    if (a->suspend_time)
       SuspendAccountAbsolute(a, 0);
    
-   /* tell guest client what other servers may be available */
-   if (!stricmp(name,ConfigStr(GUEST_ACCOUNT)))
-   {
-      AddByteToPacket(AP_GUEST);
-      AddByteToPacket(0); /* we're letting 'em stay, give 'em the new range */
-      AddIntToPacket(ConfigInt(GUEST_SERVER_MIN));
-      AddIntToPacket(ConfigInt(GUEST_SERVER_MAX));
-      SendPacket(s->session_id);
-   }
-   
    /* check if anyone already logged in on same account */
    other = GetSessionByAccount(a);
    if (other != NULL)
@@ -419,7 +388,7 @@ void SynchedAcceptLogin(session_node *s,char *name,char *password)
          // we will just hang up the other session that is on this account.
          //
          lprintf("ACCOUNT %i (%s) in use; new connection overrides old one.\n",
-                 a->account_id, a->name);
+                 a->account_id, a->name.c_str());
          HangupSession(other);
       }
       else
@@ -466,7 +435,7 @@ void VerifyLogin(session_node *s)
    char *str;
    LogUserData(s);
 
-   s->login_verified = True;
+   s->login_verified = true;
 
    AddByteToPacket(AP_LOGINOK);
    AddByteToPacket((char)(s->account->type));
@@ -506,67 +475,69 @@ void VerifyLogin(session_node *s)
 
 void LogUserData(session_node *s)
 {
-   char buf[500];
-
-   sprintf(buf,"LogUserData/4 got %i from %s, ",s->account->account_id,s->conn.name);
+   std::string buf;
+   
+   buf += "LogUserData/4 got " + std::to_string(s->account->account_id) + " from " + s->conn.name + ", ";
 
    switch (s->os_type)
    {
    case VER_PLATFORM_WIN32_WINDOWS :
 		if ((s->os_version_major > 4) ||  ((s->os_version_major == 4) && (s->os_version_minor > 0)))
-			strcat(buf,"Windows 98");
+			buf += "Windows 98";
 		else
-			strcat(buf,"Windows 95");
+			buf += "Windows 95";
       break;
    case VER_PLATFORM_WIN32_NT :
-      strcat(buf,"Windows NT");
+      buf += "Windows NT";
       break;
    default :
-      sprintf(buf+strlen(buf),"%i",s->os_type);
+      buf += std::to_string(s->os_type);
       break;
    }
    
-   sprintf(buf+strlen(buf),", %i, %i, ",s->os_version_major,s->os_version_minor);
-   
-
+   buf += ", " + std::to_string(s->os_version_major) + ", " + std::to_string(s->os_version_minor) + ", ";
 
    switch (s->machine_cpu&0xFFFF)	/* charlie: the cpu level is in the top 16 bits */
    {
    case PROCESSOR_INTEL_386 :
-      strcat(buf,"386");
+      buf += "386";
       break;
    case PROCESSOR_INTEL_486 :
-      strcat(buf,"486");
+      buf += "486";
       break;
    case PROCESSOR_INTEL_PENTIUM :
-      strcat(buf,"Pentium");
+      buf += "Pentium";
       break;
    default :
-      sprintf(buf+strlen(buf),"%i",s->machine_cpu&0xFFFF);
+      buf += std::to_string(s->machine_cpu&0xFFFF);
       break;
    }
    
-   strcat(buf,", ");
+   buf += ", ";
 
-   sprintf(buf+strlen(buf),"%i MB",s->machine_ram/(1024*1024));
-   strcat(buf,", ");
-   
-   sprintf(buf+strlen(buf),"%ix%ix%i (0x%08X)",s->screen_x,s->screen_y,s->screen_color_depth,((s->machine_cpu&0xFFFF0000)|s->displays_possible));
+   buf += std::to_string(s->machine_ram/(1024*1024)) + " MB";
+   buf += ", ";
+
+   buf += std::to_string(s->screen_x) + "x" + std::to_string(s->screen_y) + "x" + std::to_string(s->screen_color_depth);
+   std::stringstream sstream;
+   sstream << std::hex << ((s->machine_cpu&0xFFFF0000)|s->displays_possible);
+   std::string result = sstream.str();
+   buf += " (0x" + sstream.str() + ")";
 
    if (s->partner)
-      sprintf(buf+strlen(buf),", Partner %d",s->partner);
+     buf += ", Partner " + std::to_string(s->partner);
 
-   strcat(buf,", ");
-   sprintf(buf+strlen(buf),"%s",LockConfigStr(ADVERTISE_FILE1));
+   buf += ", ";
+   buf += LockConfigStr(ADVERTISE_FILE1);
    UnlockConfigStr();
 
-   strcat(buf,", ");
-   sprintf(buf+strlen(buf),"%s",LockConfigStr(ADVERTISE_FILE2));
+   buf += ", ";
+   buf += LockConfigStr(ADVERTISE_FILE2);
    UnlockConfigStr();
 
-   strcat(buf,"\n");
+   buf += "\n";
 
-   lprintf("%s",buf);
+   lprintf("%s",buf.c_str());
 }
 
 void SynchedDoMenu(session_node *s)
@@ -593,7 +564,7 @@ void SynchedSendMenuChoice(session_node *s)
       the pseudo-random # sequence thing for game messages */
 
    AddByteToPacket(AP_GETCHOICE);
-   s->seeds[0] = GetTime()*2;
+   s->seeds[0] = (int)GetTime()*2;
    s->seeds[1] = (int)GetMilliCount();
    s->seeds[2] = rand();
    s->seeds[3] = rand()*rand();

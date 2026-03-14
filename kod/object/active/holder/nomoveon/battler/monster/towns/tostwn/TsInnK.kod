@@ -40,6 +40,9 @@ classvars:
    viOccupation = MOB_ROLE_INNKEEPER
    viMerchant_markup = MERCHANT_DISCOUNT
 
+   % We know that Familiars is a popular bar, so we'll set Paddock's welcome interval to 4 minutes.
+   viWelcomeTimeInterval = 4 * 60
+
 properties:
 
 messages:
@@ -113,7 +116,7 @@ messages:
       return;
    }
    
-   UserEntered(who = $)
+   WelcomeUser(who = $)
    {
       if Send(who,@GetAction) = UA_HAPPY
       {
@@ -127,7 +130,7 @@ messages:
       
       Send(poOwner,@SomeoneSaid,#what=self,#string=TsIK_entry_welcome,#type=SAY_RESOURCE);
            
-      propagate;
+      return;
    }
 
    SomethingMoved(what = $, new_row = $, new_col = $, fine_row = FINENESS_HALF, fine_col = FINENESS_HALF)

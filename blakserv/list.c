@@ -76,18 +76,18 @@ int AllocateListNode(void)
 	return num_nodes++;
 }
 
-Bool LoadList(int list_id,val_type first,val_type rest)
+bool LoadList(int list_id,val_type first,val_type rest)
 {
 	if (AllocateListNode() != list_id)
 	{
 		eprintf("LoadList didn't make list id %i\n",list_id);
-		return False;
+		return false;
 	}
 	
 	list_nodes[list_id].first = first;
 	list_nodes[list_id].rest = rest;
 	
-	return True;
+	return true;
 }
 
 list_node *GetListNodeByID(int list_id)
@@ -100,15 +100,15 @@ list_node *GetListNodeByID(int list_id)
 	return &list_nodes[list_id];
 }
 
-Bool IsListNodeByID(int list_id)
+bool IsListNodeByID(int list_id)
 {
 	if (list_id < 0 || list_id >= num_nodes)
-		return False;
+		return false;
 	
-	return True;
+	return true;
 }
 
-int First(int list_id)
+blak_int First(int list_id)
 {
 	list_node *l;
 	
@@ -116,7 +116,7 @@ int First(int list_id)
 	return (l? l->first.int_val : NIL);
 }
 
-int Rest(int list_id)
+blak_int Rest(int list_id)
 {
 	list_node *l;
 	
@@ -159,7 +159,7 @@ int Length(int list_id)
 	return len_so_far;
 }
 
-int Nth(int n,int list_id)
+blak_int Nth(int n,int list_id)
 {
 	int i;
 	list_node *l;
@@ -175,8 +175,7 @@ int Nth(int n,int list_id)
 		}
 		if (l->rest.v.tag != TAG_LIST)
 		{
-			bprintf("Nth can't go past end of list %i,%i\n",
-				l->rest.v.tag,l->rest.v.data);
+			bprintf("Nth can't go past end of list %s\n", fmt(l->rest));
 			return NIL;
 		}
 		l = GetListNodeByID(l->rest.v.data);
@@ -211,8 +210,7 @@ int SetNth(int n,int list_id,val_type new_val)
 		}
 		if (l->rest.v.tag != TAG_LIST)
 		{
-			bprintf("SetNth can't go past end o' list %i,%i\n",
-				l->rest.v.tag,l->rest.v.data);
+			bprintf("SetNth can't go past end o' list %s\n", fmt(l->rest));
 			return NIL;
 		}
 		l = GetListNodeByID(l->rest.v.data);
@@ -252,7 +250,7 @@ int FindListElem(val_type list_id,val_type list_elem)
 	return NIL;
 }
 
-int DelListElem(val_type list_id,val_type list_elem)
+blak_int DelListElem(val_type list_id,val_type list_elem)
 {
 	list_node *l,*prev;
 	
@@ -277,10 +275,66 @@ int DelListElem(val_type list_id,val_type list_elem)
 		return list_id.int_val;
 	}
 	
-	bprintf("DelListElem can't find elem %i,%i in list id %i\n",
-		list_elem.v.tag,list_elem.v.data,list_id.v.data);
+	bprintf("DelListElem can't find elem %s in list id %" PRId64 "\n",
+          fmt(list_elem),list_id.v.data);
 	
 	return list_id.int_val;
+}
+
+void MoveListElem(val_type list_id, val_type n, val_type m)
+{
+  list_node *list = GetListNodeByID(list_id.v.data);
+  if (list == NULL)
+  {
+    return;
+  }
+
+  // Copy all list data into a vector
+  std::vector<val_type> node_contents;
+  node_contents.push_back(list->first);
+  list_node *node = list;
+  while (node != NULL && node->rest.v.data != NIL)
+  {
+    node = GetListNodeByID(node->rest.v.data);
+    node_contents.push_back(node->first);
+  }
+
+  int source_index = n.v.data;
+  int dest_index = m.v.data;
+  if (source_index <= 0 || source_index > (int) node_contents.size())
+  {
+    bprintf("MoveListElem got source index out of range %i in list %" PRId64 "\n",
+            source_index, list_id.v.data);
+    return;
+  }
+  if (dest_index <= 0 || dest_index > (int) node_contents.size() + 1)
+  {
+    bprintf("MoveListElem got destination index out of range %i in list %" PRId64 "\n",
+            dest_index, list_id.v.data);
+    return;
+  }
+
+  if (source_index == dest_index)
+  {
+    return;
+  }
+  
+  // Go from 1-based (Blakod) to 0-based
+  source_index -= 1;
+  dest_index -= 1;
+
+  // Do the move on the vector
+  node_contents.insert(node_contents.begin() + dest_index, node_contents[source_index]);
+  int pos_to_erase = source_index + (source_index > dest_index ? 1 : 0);
+  node_contents.erase(node_contents.begin() + pos_to_erase);
+  
+  // Copy the vector back to the list
+  node = list;
+  for (auto data : node_contents)
+  {
+    node->first = data;
+    node = GetListNodeByID(node->rest.v.data);
+  }
 }
 
 void ForEachListNode(void (*callback_func)(list_node *l,int list_id))

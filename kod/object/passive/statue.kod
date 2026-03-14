@@ -64,10 +64,13 @@ properties:
    prRight_arm = $
    prLeft_arm = $
    prLegs = $
+   pbIsHairVisible = $
+   prFacialOverlay = $ % Facial overlay resource (e.g. mask)
 
    prWeapon = statue_default_sword
    prShield = statue_default_shield
    prBowTop = $
+   prInstrument = $
    
    piIcon_frame = 1
    piLegs_frame = 1
@@ -164,9 +167,7 @@ messages:
    }
 
    Constructor(original = $, default = FALSE,desc = $,special=FALSE, specialname = $, specialgender = GENDER_MALE)
-   {
-      local i;
-      
+   {     
       if special
       {
          send(self,@ConstructorSpecial,#desc=desc,#name=specialname,#gender=specialgender,#color = special);
@@ -241,6 +242,12 @@ messages:
             piOverlays = piOverlays + 1;
          }
 
+         if prInstrument <> $
+         {
+            piLeft_frame = 7;
+            piOverlays = piOverlays + 1;
+         }
+
          if prWeapon <> $
          {
             piWeapon_frame = 4;
@@ -310,6 +317,16 @@ messages:
             piShield_frame = 2;
             piOverlays = piOverlays + 1;
          }
+      }
+
+      if prFacialOverlay <> $
+      {
+         piOverlays = piOverlays + 1;
+      }
+
+      if not pbIsHairVisible
+      {
+         piOverlays = piOverlays - 1;
       }
 
       return;
@@ -428,7 +445,7 @@ messages:
 
    SetStatue(original = $)
    {      
-      local oWeapon, oShield;
+      local oWeapon, oShield, oMask, oInstrument;
 
       if original = $ OR NOT IsClass(original,&User)
       {
@@ -451,6 +468,16 @@ messages:
       prToupee = send(poOriginal,@GetHairRsc);
       send(self,@ValidateGraphics,#gender=Send(poOriginal,@GetGender));
 
+      % Get the facial overlay object and store its gender-specific resource
+      prFacialOverlay = $;
+      oMask = Send(poOriginal,@GetFacialOverlay);
+      if oMask <> $
+      {
+         prFacialOverlay = Send(oMask,@GetOverlay);
+      }
+      
+      pbIsHairVisible = Send(poOriginal,@IsHairVisible);
+
       oWeapon = send(poOriginal,@LookUpPlayerWeapon);
 
       prShield = send(poOriginal,@GetShieldRsc);
@@ -458,6 +485,14 @@ messages:
       {
          oShield = Send(poOriginal, @LookupPlayerShield);
          piShield_hotspot = Send(oShield, @GetOverlayHotspot);
+      }
+
+      % Check for instrument (e.g. lute)
+      prInstrument = $;
+      oInstrument = send(poOriginal,@LookupPlayerInstrument);
+      if oInstrument <> $
+      {
+         prInstrument = send(oInstrument,@GetOverlay);
       }
 
       prBowTop = $; 
@@ -494,7 +529,7 @@ messages:
 
    SendOverlays()
    {
-      local i,iOverlays,hotspot,iLeft_group,iRight_group,iSkin_xlat, iArms_xlat;
+      local iSkin_xlat;
 
       % Send overlay bitmap info to user.  
 
@@ -537,8 +572,11 @@ messages:
       AddPacket(4,prMouth,1,HS_MOUTH,1,ANIMATE_TRANSLATION,1,iSkin_xlat,1,ANIMATE_NONE,2,piExpression);
       AddPacket(4,prEyes,1,HS_EYES,1,ANIMATE_TRANSLATION,1,iSkin_xlat,1,ANIMATE_NONE,2,piExpression);
       AddPacket(4,prNose,1,HS_NOSE,1,ANIMATE_TRANSLATION,1,iSkin_xlat,1,ANIMATE_NONE,2,1);
-      AddPacket(4,prToupee,1,HS_TOUPEE,1,ANIMATE_TRANSLATION,1,piHair_translation);
-      AddPacket(1,ANIMATE_NONE,2,1); 
+
+      if pbIsHairVisible
+      {
+         AddPacket(4,prToupee,1,HS_TOUPEE,1,ANIMATE_TRANSLATION,1,piHair_translation,1,ANIMATE_NONE,2,1);
+      }
 
       if prShield <> $ and piPose <> POSE_CAST
       {
@@ -550,6 +588,14 @@ messages:
          }      
 
          AddPacket(1,ANIMATE_NONE,2,piShield_frame);  
+      }
+
+      % Instrument overlay (e.g. lute)
+      if prInstrument <> $ AND piPose = POSE_NONE
+      {
+         AddPacket(4,prInstrument);
+         AddPacket(1,HS_LEFT_WEAPON);
+         AddPacket(1,ANIMATE_NONE,2,1);
       }
 
       if prWeapon <> $ AND (piPose <> POSE_CAST AND piPose <> POSE_PUNCH)
@@ -592,6 +638,14 @@ messages:
       
             AddPacket(1,ANIMATE_NONE,2,piWeapon_frame);  
          }
+      }
+
+      % Facial overlay (e.g. mask)
+      if prFacialOverlay <> $
+      {
+         AddPacket(4,prFacialOverlay);
+         AddPacket(1,HS_TOUPEE);
+         AddPacket(1,ANIMATE_NONE,2,1);
       }
 
       return;

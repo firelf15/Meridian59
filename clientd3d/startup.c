@@ -14,9 +14,9 @@
 #include "client.h"
 
 /****************************************************************************/
-Bool StartupCheck(void)
+bool StartupCheck(void)
 {
-   Bool retval = True;
+   bool retval = true;
    HDC hdc = GetDC(NULL);
    long num_colors;
    int num_planes, num_bpp;
@@ -29,17 +29,8 @@ Bool StartupCheck(void)
    {
       num_colors = 1L << (num_bpp * num_planes);
 
-#if 0
-         {
-            char temp[50];
-            sprintf(temp, "number of colors = %d, has palette = %d", num_colors,
-		    GetDeviceCaps(hdc, RASTERCAPS) & RC_PALETTE);
-            MessageBox(NULL, temp, "", MB_APPLMODAL);
-         }
-#endif
-      
       ClientError(hInst, NULL, IDS_TOOFEWCOLORS, NUM_COLORS, num_colors);
-      retval = False;
+      retval = false;
    }
    
    ReleaseDC(NULL, hdc);

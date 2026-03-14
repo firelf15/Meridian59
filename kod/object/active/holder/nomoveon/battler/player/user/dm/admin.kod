@@ -31,19 +31,6 @@ resources:
 
    admin_currently_in = "The ROO for `b%s`n is `k`B%s`n."
 
-   admin_create_itematt_command = "create item attribute"
-   admin_anonymous_command = "anonymous"
-   admin_shadow_command = "shadow"
-   admin_relic_command = "relic"
-   admin_start_tour_command = "start tour"
-   admin_end_tour_command = "end tour"
-   admin_mortal_command = "mortal"
-   admin_immortal_command = "immortal"
-   admin_create_dynamic_light_command = "place dynamic light"
-   admin_logoffghost_on_command = "logoffghost on"
-   admin_logoffghost_off_command = "logoffghost off"
-   admin_logoffghost_temp_off_command = "logoffghost temp off"
-
    admin_no_longer = "This command no longer exists; try the DM command form."
 
    % not for admin use, but to let creator work
@@ -67,6 +54,8 @@ classvars:
 
 properties:
 
+   plPlaceableTypes = $
+
    pbCapableAdmin = TRUE
    pbSay_commands = TRUE
    pbAdvancement = TRUE
@@ -78,6 +67,27 @@ properties:
    piTour_count
 
 messages:
+
+   InitPlaceableTypes()
+   "Builds the placeable types list. If entries are added or removed, "
+   "use PostPatch to nil plPlaceableTypes."
+   {
+      plPlaceableTypes = [ ["place table lamp",      &TableLamp],
+                           ["place kocatan lamp",    &KocatanLamp],
+                           ["place lamp",            &Lamp],
+                           ["place brazier switch",  &BrazierSwitch],
+                           ["place skull brazier",   &SkullBrazier],
+                           ["place kocatan brazier", &KocatanBrazier],
+                           ["place brazier",         &Brazier],
+                           ["place candelabra",      &Candelabra],
+                           ["place candle",          &Candle],
+                           ["place firepit",         &Firepit],
+                           ["place smoke column",    &SmokeColumn],
+                           ["place orc torch",       &OrcTorch],
+                           ["place glow tree",       &GlowTree] ];
+
+      return;
+   }
 
    UserLogonHook()
    {
@@ -137,11 +147,27 @@ messages:
 
    UserSay(string = $,type = $)
    {
-      local oWeapon, i, lObjects, oObject, rRoom, iRow, iCol, iFineRow, iFineCol;
+      local oWeapon, i, oObject, lItemAttributes, lAttribute, bShouldRevealAttribute,
+            lEntry;
 
-      if type = SAY_DM
-         AND (StringContain(string,admin_create_itematt_command)
-              OR StringContain(string,"create itematt"))
+      % Admin mode commands use only string literals, not resources,
+      % to ensure the English command always works regardless of any
+      % resource localization.
+
+      % Everything below this point involves checks for commands issued through the SAY_DM
+      % (dm <command here>) channel.
+      if (type <> SAY_DM)
+      {
+         propagate;
+      }
+
+      bShouldRevealAttribute = NOT StringContain(string, "create unrevealed itematt");
+      
+      % if bShouldRevealAttribute ends up FALSE, we've already passed the 
+      % dialog check for an attempt to create an item attribute.  Otherwise,
+      % check the dialog for the standard item attribute creation strings 
+      if (NOT bShouldRevealAttribute
+         OR StringContain(string,"create itematt"))
       {
          %% Only works on weapons for now.
          oWeapon = Send(self,@LookupPlayerWeapon);
@@ -152,18 +178,37 @@ messages:
 
             return;  
          }
-	 
+
          for i in Send(SYS,@GetItemAtts)
          {
             if Send(i,@DMCreateItemAtt,#who=self,#string=string,
-                    #oWeapon=oWeapon)
+               #oWeapon=oWeapon)
             {
+               % Identify the newly-added attribute
+               if (bShouldRevealAttribute)
+               {
+                  lItemAttributes = Send(oWeapon, @GetItemAttributes);
+
+                  % The first attribute in the list of item attributes is the
+                  % most recently-added attribute.
+                  lAttribute = First(lItemAttributes);
+
+                  % The first value in an attribute list is a compound value,
+                  % where the ones digit represents revealed (odd) or 
+                  % unrevealed (even).
+                  if (lAttribute <> $ AND First(lAttribute) mod 2 = 0)
+                  {
+                     % This sets an unrevealed attribute's status to revealed.
+                     SetNth(lAttribute, 1, First(lAttribute) + 1);
+                  }
+               }
+   
                if NOT pbStealth
                {
                   Send(poOwner,@SomeoneSaid,#what=self,#type=SAY_MESSAGE,
-                       #string=admin_made_itematt,#parm1=Send(self,@GetName),
-                       #parm2=Send(oWeapon,@GetDef),
-                       #parm3=Send(oWeapon,@GetName));
+                     #string=admin_made_itematt,#parm1=Send(self,@GetName),
+                     #parm2=Send(oWeapon,@GetDef),
+                     #parm3=Send(oWeapon,@GetName));
                }
 
                return;
@@ -175,8 +220,7 @@ messages:
          return;
       }
 
-      if (StringContain(string,admin_relic_command)
-          OR StringContain(string,"relic"))
+      if (StringContain(string,"relic"))
       {
          if (StringContain(string,"1") OR StringContain(string,"heirloom"))
          {
@@ -214,8 +258,7 @@ messages:
          }
       }
 
-      if StringEqual(string,admin_anonymous_command)
-         OR StringEqual(string,"anonymous")
+      if StringEqual(string,"anonymous")
       {
          if NOT (piFlags & PFLAG_ANONYMOUS)
          {
@@ -247,8 +290,7 @@ messages:
          return;
       }
 
-      if StringEqual(string,admin_shadow_command)
-         OR StringEqual(string,"shadow")
+      if StringEqual(string,"shadow")
       {
          Send(self,@MsgSendUser,#message_rsc=admin_black);
          Send(self,@SetPlayerDrawfx,#drawfx=DRAWFX_BLACK);
@@ -259,24 +301,21 @@ messages:
       }
 
 
-      if StringEqual(string,admin_start_tour_command)
-         OR StringEqual(string,"start tour")
+      if StringEqual(string,"start tour")
       {
          Send(self,@StartTour);
 
          return;
       }
 
-      if StringEqual(string,admin_end_tour_command)
-         OR StringEqual(string,"end tour")
+      if StringEqual(string,"end tour")
       {
          Send(self,@EndTour);
 
          return;
       }
 
-      if StringEqual(string,admin_mortal_command)
-         or StringEqual(string,"mortal")
+      if StringEqual(string,"mortal")
       {
          pbImmortal = FALSE;
 
@@ -295,8 +334,7 @@ messages:
          return;
       }
 
-      if StringEqual(string,admin_immortal_command)
-         OR StringEqual(string,"immortal")
+      if StringEqual(string,"immortal")
       {
          pbImmortal = pbImmortalSave;
 
@@ -323,10 +361,18 @@ messages:
          return;
       }
 
+      %%% Code for placing an ornamental object
+      if StringContain(string,"place ornament")
+      {
+         oObject = Create(&OrnamentalObject, #type=OO_DUNG);
+         Send(oObject, @PlaceAt, #what=self);
+         
+         return;
+      }
+
       %%% Code for placing light items.
 
-      if StringEqual(string,admin_create_dynamic_light_command)
-         OR StringEqual(string,"place dynamic light")
+      if StringEqual(string,"place dynamic light")
       {
          oObject = create(&DynamicLight,#bVisible=TRUE);
 
@@ -338,58 +384,23 @@ messages:
          return;
       }
 
-      if StringContain(string,"place lamp")
+      %%% Data-driven placement of objects by class.
+      if plPlaceableTypes = $
       {
-         oObject = create(&Lamp);
-
-         Send(poOwner,@NewHold,#what=oObject,#new_row=Send(self,@GetRow),
-              #new_col=Send(self,@GetCol));
-
-         return;
+         Send(self,@InitPlaceableTypes);
       }
 
-      if StringContain(string,"place brazier")
+      for lEntry in plPlaceableTypes
       {
-         oObject = create(&Brazier);
+         if StringEqual(string, First(lEntry))
+         {
+            Send(self, @AdminPlaceObject, #class=Nth(lEntry, 2));
 
-         Send(poOwner,@NewHold,#what=oObject,#new_row=Send(self,@GetRow),
-              #new_col=Send(self,@GetCol));
-
-         return;
+            return;
+         }
       }
 
-      if StringContain(string,"place candelabra")
-      {
-         oObject = create(&Candelabra);
-
-         Send(poOwner,@NewHold,#what=oObject,#new_row=Send(self,@GetRow),
-              #new_col=Send(self,@GetCol));
-
-         return;
-      }
-
-      if StringContain(string,"place candle")
-      {
-         oObject = create(&Candle);
-
-         Send(poOwner,@NewHold,#what=oObject,#new_row=Send(self,@GetRow),
-              #new_col=Send(self,@GetCol));
-
-         return;
-      }
-
-      if StringContain(string,"place firepit")
-      {
-         oObject = create(&Firepit);
-
-         Send(poOwner,@NewHold,#what=oObject,#new_row=Send(self,@GetRow),
-              #new_col=Send(self,@GetCol));
-
-         return;
-      }
-
-      if StringEqual(string,admin_logoffghost_on_command)
-         OR StringEqual(string,"logoffghost on")
+      if StringEqual(string,"logoffghost on")
       {
          Send(self,@MsgSendUser,#message_rsc=admin_logoffghost_on);
          Send(SYS,@SetLogoffPenaltyEnable,#enable=TRUE);
@@ -397,8 +408,7 @@ messages:
          return;
       }
 
-      if StringEqual(string,admin_logoffghost_off_command)
-         OR StringEqual(string,"logoffghost off")
+      if StringEqual(string,"logoffghost off")
       {
          Send(self,@MsgSendUser,#message_rsc=admin_logoffghost_off);
          Send(SYS,@SetLogoffPenaltyEnable,#enable=FALSE);
@@ -406,8 +416,7 @@ messages:
          return;
       }
 
-      if StringEqual(string,admin_logoffghost_temp_off_command)
-         OR StringEqual(string,"logoffghost temp off")
+      if StringEqual(string,"logoffghost temp off")
       {
          Send(self,@MsgSendUser,#message_rsc=admin_logoffghost_temp_off);
          Send(SYS,@TempDisableLogoffPenalties);         
@@ -437,37 +446,6 @@ messages:
          return;
       }
 
-      if StringContain(string,"snoop")
-      {
-         if Send(SYS,@GetInvestigator) <> self
-         {
-            propagate;
-         }
-
-         StringSubstitute(string,"snoop "," ");
-         i = Send(SYS,@FindUserByString,#string=string);
-         if i <> $
-         {
-            Send(SYS,@AddSuspect,#who=i);
-         }
-
-         Send(self,@SuspectRollcall);
-
-         return;
-      }
-
-      if StringEqual(string,"list suspects")
-      {
-         if Send(SYS,@GetInvestigator) <> self
-         {
-            propagate;
-         }
-
-         Send(self,@SuspectRollcall);
-
-         return;
-      }
-
       propagate;
    }
 
@@ -475,8 +453,6 @@ messages:
 
    StartTour(delay = 2000)
    {
-      local i;
-
       piTour_delay = delay;
       piTour_count = 1;
       Send(self,@TourTimer);
@@ -531,6 +507,21 @@ messages:
       }
 
       propagate;
+   }
+
+   AdminPlaceObject(class=$)
+   "Creates an object of the given class at the admin's position."
+   {
+      local oObject;
+
+      oObject = Create(class);
+      Send(poOwner, @NewHold, #what=oObject,
+           #new_row=Send(self, @GetRow),
+           #new_col=Send(self, @GetCol),
+           #fine_row=Send(self, @GetFineRow),
+           #fine_col=Send(self, @GetFineCol));
+
+      return;
    }
 
    %%% Investigator stuff

@@ -21,7 +21,7 @@ static void MaybeEnableAddButton(HWND hDlg);
 static void CharSpellsInit(HWND hDlg);
 void CharSpellsCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNoify);
 /********************************************************************/
-BOOL CALLBACK CharSpellsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK CharSpellsDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
    switch (message)
    {
@@ -99,10 +99,10 @@ void CharSpellsCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
       
       index2 = ListBox_AddString(hList2, LookupNameRsc(s->name_res));
       ListBox_SetItemData(hList2, index2, s);
-      s->chosen = True;
+      s->chosen = true;
       ListBox_DeleteString(hList1, index1);
 
-      ListBox_SetCurSel(hList1, min(index1, ListBox_GetCount(hList1) - 1));
+      ListBox_SetCurSel(hList1, std::min(index1, ListBox_GetCount(hList1) - 1));
       FORWARD_WM_COMMAND(hwnd, IDC_SPELLIST1, hList1, LBN_SELCHANGE, CharSpellsDialogProc);
       break;
       
@@ -118,10 +118,10 @@ void CharSpellsCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
       index1 = ListBox_AddString(hList1, LookupNameRsc(s->name_res));
       ListBox_SetItemData(hList1, index1, s);
-      s->chosen = False;
+      s->chosen = false;
       ListBox_DeleteString(hList2, index2);
 
-      ListBox_SetCurSel(hList2, min(index2, ListBox_GetCount(hList2) - 1));
+      ListBox_SetCurSel(hList2, std::min(index2, ListBox_GetCount(hList2) - 1));
       FORWARD_WM_COMMAND(hwnd, IDC_SPELLIST2, hList2, LBN_SELCHANGE, CharSpellsDialogProc);
 
       MaybeEnableAddButton(hwnd);
